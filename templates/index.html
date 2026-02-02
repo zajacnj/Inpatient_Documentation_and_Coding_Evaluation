@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inpatient Documentation and Coding Evaluation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #003366 0%, #004d99 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .user-info {
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .status-dot.connected {
+            background-color: #28a745;
+        }
+
+        .status-dot.disconnected {
+            background-color: #dc3545;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: #004d99;
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+        }
+
+        .panel-content {
+            padding: 20px;
+        }
+
+        /* Date Selection */
+        .date-selection {
+            margin-bottom: 20px;
+        }
+
+        .date-selection label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .date-selection input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #004d99;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #003366;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        /* Patient List */
+        .patient-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        .patient-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .patient-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .patient-item.selected {
+            background-color: #e7f3ff;
+            border-left: 3px solid #004d99;
+        }
+
+        .patient-item .patient-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .patient-item .patient-details {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .patient-count {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            min-height: 600px;
+        }
+
+        .results-tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: #004d99;
+        }
+
+        .tab-btn.active {
+            color: #004d99;
+            border-bottom-color: #004d99;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Results Display */
+        .results-box {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .diagnosis-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .diagnosis-card.principal {
+            border-left: 4px solid #004d99;
+        }
+
+        .diagnosis-card.secondary {
+            border-left: 4px solid #6c757d;
+        }
+
+        .diagnosis-card.discrepancy {
+            border-left: 4px solid #ffc107;
+            background: #fff9e6;
+        }
+
+        .diagnosis-card.missing {
+            border-left: 4px solid #dc3545;
+            background: #fff5f5;
+        }
+
+        .diagnosis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .diagnosis-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .icd-code {
+            background: #e7f3ff;
+            color: #004d99;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .diagnosis-evidence {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .confidence-high {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .confidence-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .confidence-low {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Export Buttons */
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #004d99;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 12px 20px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .alert-info {
+            background: #e7f3ff;
+            color: #004d99;
+            border: 1px solid #b8daff;
+        }
+
+        .alert-warning {
+            background: #fff9e6;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .alert-error {
+            background: #fff5f5;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        /* Summary Stats */
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #004d99;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Inpatient Documentation and Coding Evaluation</h1>
+        <p>AI-powered analysis of clinical documentation against coded diagnoses</p>
+    </div>
+
+    <div class="container">
+        <div class="user-info">
+            <div>
+                <strong>User:</strong> <span id="username">Loading...</span>
+                <span style="margin-left: 20px;"><strong>Session:</strong> <span id="session-id">-</span></span>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot" id="db-status"></span>
+                <span>Database</span>
+                <span class="status-dot" id="ai-status" style="margin-left: 15px;"></span>
+                <span>VA GPT</span>
+            </div>
+        </div>
+
+        <div class="alert alert-warning" id="config-alert" style="display: none;">
+            <strong>Configuration Required:</strong> Database tables and TIU note types need to be configured.
+            Please update <code>config/database_config.json</code> with the correct table names.
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel: Patient Selection -->
+            <div class="panel">
+                <div class="panel-header">Patient Selection</div>
+                <div class="panel-content">
+                    <div class="date-selection">
+                        <label for="start-date">Discharge Date Range</label>
+                        <input type="date" id="start-date">
+                        <input type="date" id="end-date">
+                        <button class="btn btn-primary btn-block" onclick="searchPatients()">
+                            Search Discharged Patients
+                        </button>
+                    </div>
+
+                    <div class="patient-count" id="patient-count">
+                        Select a date range to view discharged patients
+                    </div>
+
+                    <div class="patient-list" id="patient-list">
+                        <div class="empty-state">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <p>No patients loaded</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success btn-block" id="review-btn" onclick="startReview()" disabled style="margin-top: 15px;">
+                        Review Hospitalization
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Results -->
+            <div class="panel results-panel">
+                <div class="panel-header">Analysis Results</div>
+                <div class="panel-content">
+                    <div class="results-tabs">
+                        <button class="tab-btn active" onclick="showTab('summary')">Summary</button>
+                        <button class="tab-btn" onclick="showTab('ai-diagnoses')">AI Diagnoses</button>
+                        <button class="tab-btn" onclick="showTab('coded-diagnoses')">Coded (PTF)</button>
+                        <button class="tab-btn" onclick="showTab('comparison')">Comparison</button>
+                        <button class="tab-btn" onclick="showTab('raw')">Raw Output</button>
+                    </div>
+
+                    <!-- Summary Tab -->
+                    <div class="tab-content active" id="tab-summary">
+                        <div class="empty-state" id="summary-empty">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p>Select a patient and click "Review Hospitalization" to begin analysis</p>
+                        </div>
+                        <div id="summary-content" style="display: none;">
+                            <div class="summary-stats" id="summary-stats"></div>
+                            <div id="summary-text"></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Diagnoses Tab -->
+                    <div class="tab-content" id="tab-ai-diagnoses">
+                        <div id="ai-diagnoses-content">
+                            <p class="empty-state">No AI diagnoses available</p>
+                        </div>
+                    </div>
+
+                    <!-- Coded Diagnoses Tab -->
+                    <div class="tab-content" id="tab-coded-diagnoses">
+                        <div id="coded-diagnoses-content">
+                            <p class="empty-state">No coded diagnoses available</p>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Tab -->
+                    <div class="tab-content" id="tab-comparison">
+                        <div id="comparison-content">
+                            <p class="empty-state">No comparison available</p>
+                        </div>
+                    </div>
+
+                    <!-- Raw Output Tab -->
+                    <div class="tab-content" id="tab-raw">
+                        <div class="results-box" id="raw-output">
+                            // Analysis results will appear here...
+                        </div>
+                    </div>
+
+                    <!-- Export Buttons -->
+                    <div class="export-buttons" id="export-buttons" style="display: none;">
+                        <button class="btn btn-secondary" onclick="exportResults('docx')">Export to Word</button>
+                        <button class="btn btn-secondary" onclick="exportResults('xlsx')">Export to Excel</button>
+                        <button class="btn btn-secondary" onclick="exportResults('pdf')">Export to PDF</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let selectedPatient = null;
+        let currentAnalysis = null;
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default dates (last 7 days)
+            const today = new Date();
+            const lastWeek = new Date(today);
+            lastWeek.setDate(lastWeek.getDate() - 7);
+
+            document.getElementById('end-date').value = today.toISOString().split('T')[0];
+            document.getElementById('start-date').value = lastWeek.toISOString().split('T')[0];
+
+            // Load user info and check status
+            loadUserInfo();
+            checkSystemStatus();
+        });
+
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user/info');
+                const data = await response.json();
+                document.getElementById('username').textContent = data.username;
+                document.getElementById('session-id').textContent = data.session_id;
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch('/api/diagnostics');
+                const data = await response.json();
+
+                // Update status indicators
+                const dbStatus = document.getElementById('db-status');
+                const aiStatus = document.getElementById('ai-status');
+
+                dbStatus.className = 'status-dot ' + (data.database.connected ? 'connected' : 'disconnected');
+                aiStatus.className = 'status-dot ' + (data.va_gpt.initialized ? 'connected' : 'disconnected');
+
+                // Show config alert if needed
+                if (!data.configuration.tables_configured) {
+                    document.getElementById('config-alert').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+
+        async function searchPatients() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates');
+                return;
+            }
+
+            const patientList = document.getElementById('patient-list');
+            patientList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Searching patients...</p></div>';
+
+            try {
+                const response = await fetch('/api/patients/discharged', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_date: startDate,
+                        end_date: endDate
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.patients.length > 0) {
+                    document.getElementById('patient-count').textContent = `${data.count} patients found`;
+                    renderPatientList(data.patients);
+                } else {
+                    document.getElementById('patient-count').textContent = 'No patients found';
+                    patientList.innerHTML = '<div class="empty-state"><p>No discharged patients found for this date range</p></div>';
+                }
+            } catch (error) {
+                console.error('Error searching patients:', error);
+                patientList.innerHTML = '<div class="alert alert-error">Error searching patients. Check console for details.</div>';
+            }
+        }
+
+        function renderPatientList(patients) {
+            const patientList = document.getElementById('patient-list');
+            patientList.innerHTML = '';
+
+            patients.forEach(patient => {
+                const div = document.createElement('div');
+                div.className = 'patient-item';
+                div.onclick = () => selectPatient(patient, div);
+                div.innerHTML = `
+                    <div class="patient-name">${patient.PatientName || 'Unknown'}</div>
+                    <div class="patient-details">
+                        ID: ${patient.PatientID}<br>
+                        Admitted: ${formatDate(patient.AdmissionDate)}<br>
+                        Discharged: ${formatDate(patient.DischargeDate)}<br>
+                        LOS: ${patient.LOS || 0} days
+                    </div>
+                `;
+                patientList.appendChild(div);
+            });
+        }
+
+        function selectPatient(patient, element) {
+            // Remove previous selection
+            document.querySelectorAll('.patient-item.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Add selection to clicked item
+            element.classList.add('selected');
+            selectedPatient = patient;
+
+            // Enable review button
+            document.getElementById('review-btn').disabled = false;
+        }
+
+        async function startReview() {
+            if (!selectedPatient) {
+                alert('Please select a patient first');
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('summary-empty').style.display = 'none';
+            document.getElementById('summary-content').style.display = 'none';
+            document.getElementById('tab-summary').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Analyzing documentation...</p><p style="font-size: 0.85rem; color: #666;">This may take a few minutes for large admissions.</p></div>';
+
+            try {
+                const response = await fetch('/api/review/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patient_id: selectedPatient.PatientID,
+                        admission_id: selectedPatient.AdmissionID || selectedPatient.PatientID
+                    })
+                });
+
+                const data = await response.json();
+                currentAnalysis = data;
+
+                // Render results
+                renderResults(data);
+
+            } catch (error) {
+                console.error('Error starting review:', error);
+                document.getElementById('tab-summary').innerHTML = `
+                    <div class="alert alert-error">
+                        Error analyzing documentation: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function renderResults(data) {
+            // Restore summary tab structure
+            document.getElementById('tab-summary').innerHTML = `
+                <div id="summary-content">
+                    <div class="summary-stats" id="summary-stats"></div>
+                    <div id="summary-text"></div>
+                </div>
+            `;
+
+            // Summary stats
+            const stats = document.getElementById('summary-stats');
+            stats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${data.documents_analyzed?.notes || 0}</div>
+                    <div class="stat-label">Notes Analyzed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.ai_analysis?.diagnoses_found || 0}</div>
+                    <div class="stat-label">AI Diagnoses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.coded_diagnoses?.length || 0}</div>
+                    <div class="stat-label">Coded Diagnoses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.processing_time_seconds || 0}s</div>
+                    <div class="stat-label">Processing Time</div>
+                </div>
+            `;
+
+            // Summary text
+            const summaryText = document.getElementById('summary-text');
+            if (data.ai_analysis?.consolidated?.clinical_summary) {
+                summaryText.innerHTML = `
+                    <h3 style="margin-bottom: 10px;">Clinical Summary</h3>
+                    <p>${data.ai_analysis.consolidated.clinical_summary}</p>
+                    ${data.recommendations?.length > 0 ? `
+                        <h3 style="margin-top: 20px; margin-bottom: 10px;">Recommendations</h3>
+                        <ul>${data.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
+                    ` : ''}
+                `;
+            }
+
+            // AI Diagnoses tab
+            renderDiagnoses('ai-diagnoses-content', data.ai_analysis?.consolidated);
+
+            // Coded Diagnoses tab
+            renderCodedDiagnoses('coded-diagnoses-content', data.coded_diagnoses);
+
+            // Comparison tab
+            renderComparison('comparison-content', data.comparison);
+
+            // Raw output
+            document.getElementById('raw-output').textContent = JSON.stringify(data, null, 2);
+
+            // Show export buttons
+            document.getElementById('export-buttons').style.display = 'flex';
+        }
+
+        function renderDiagnoses(containerId, consolidated) {
+            const container = document.getElementById(containerId);
+
+            if (!consolidated) {
+                container.innerHTML = '<p class="empty-state">No AI diagnoses extracted</p>';
+                return;
+            }
+
+            let html = '';
+
+            // Principal diagnosis
+            if (consolidated.principal_diagnosis) {
+                const pd = consolidated.principal_diagnosis;
+                html += `
+                    <div class="diagnosis-card principal">
+                        <div class="diagnosis-header">
+                            <div>
+                                <span class="diagnosis-name">${pd.name}</span>
+                                <span class="confidence-badge confidence-${pd.confidence?.toLowerCase() || 'medium'}">${pd.confidence || 'MEDIUM'}</span>
+                            </div>
+                            <span class="icd-code">${pd.icd10_code || 'Not coded'}</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">Principal Diagnosis</div>
+                        ${pd.evidence ? `<div class="diagnosis-evidence"><strong>Evidence:</strong> ${Array.isArray(pd.evidence) ? pd.evidence.join(', ') : pd.evidence}</div>` : ''}
+                    </div>
+                `;
+            }
+
+            // Secondary diagnoses
+            if (consolidated.secondary_diagnoses) {
+                consolidated.secondary_diagnoses.forEach(dx => {
+                    html += `
+                        <div class="diagnosis-card secondary">
+                            <div class="diagnosis-header">
+                                <div>
+                                    <span class="diagnosis-name">${dx.name}</span>
+                                    <span class="confidence-badge confidence-${dx.confidence?.toLowerCase() || 'medium'}">${dx.confidence || 'MEDIUM'}</span>
+                                    ${dx.cc_mcc ? `<span style="margin-left: 5px; font-size: 0.75rem; color: #666;">(${dx.cc_mcc})</span>` : ''}
+                                </div>
+                                <span class="icd-code">${dx.icd10_code || 'Not coded'}</span>
+                            </div>
+                            ${dx.evidence ? `<div class="diagnosis-evidence"><strong>Evidence:</strong> ${Array.isArray(dx.evidence) ? dx.evidence.join(', ') : dx.evidence}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            container.innerHTML = html || '<p class="empty-state">No diagnoses found</p>';
+        }
+
+        function renderCodedDiagnoses(containerId, diagnoses) {
+            const container = document.getElementById(containerId);
+
+            if (!diagnoses || diagnoses.length === 0) {
+                container.innerHTML = '<p class="empty-state">No coded diagnoses from PTF</p>';
+                return;
+            }
+
+            let html = '';
+            diagnoses.forEach((dx, index) => {
+                html += `
+                    <div class="diagnosis-card ${index === 0 ? 'principal' : 'secondary'}">
+                        <div class="diagnosis-header">
+                            <span class="diagnosis-name">${dx.DiagnosisDescription || 'Unknown'}</span>
+                            <span class="icd-code">${dx.ICD10Code || 'N/A'}</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #666;">
+                            Sequence: ${dx.DiagnosisSequence || index + 1}
+                            ${dx.POAIndicator ? ` | POA: ${dx.POAIndicator}` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderComparison(containerId, comparison) {
+            const container = document.getElementById(containerId);
+
+            if (!comparison) {
+                container.innerHTML = '<p class="empty-state">No comparison available</p>';
+                return;
+            }
+
+            let html = '';
+
+            // Matches
+            if (comparison.matches?.length > 0) {
+                html += '<h3 style="margin-bottom: 10px; color: #28a745;">Matches</h3>';
+                comparison.matches.forEach(match => {
+                    html += `
+                        <div class="diagnosis-card" style="border-left-color: #28a745;">
+                            <span class="diagnosis-name">${match.documented || match.coded}</span>
+                            <span class="icd-code">${match.icd10 || 'N/A'}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // Documented but not coded
+            if (comparison.documented_not_coded?.length > 0) {
+                html += '<h3 style="margin: 20px 0 10px; color: #ffc107;">Documented but Not Coded</h3>';
+                comparison.documented_not_coded.forEach(item => {
+                    html += `
+                        <div class="diagnosis-card discrepancy">
+                            <div class="diagnosis-header">
+                                <span class="diagnosis-name">${item.diagnosis}</span>
+                                <span class="icd-code">${item.suggested_icd10 || 'Needs review'}</span>
+                            </div>
+                            ${item.evidence ? `<div class="diagnosis-evidence"><strong>Evidence:</strong> ${item.evidence}</div>` : ''}
+                            ${item.impact ? `<div style="margin-top: 8px; font-size: 0.85rem;"><strong>Impact:</strong> ${item.impact}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Coded but not documented
+            if (comparison.coded_not_documented?.length > 0) {
+                html += '<h3 style="margin: 20px 0 10px; color: #dc3545;">Coded but Not Clearly Documented</h3>';
+                comparison.coded_not_documented.forEach(item => {
+                    html += `
+                        <div class="diagnosis-card missing">
+                            <div class="diagnosis-header">
+                                <span class="diagnosis-name">${item.description || 'Unknown'}</span>
+                                <span class="icd-code">${item.icd10 || 'N/A'}</span>
+                            </div>
+                            ${item.concern ? `<div class="diagnosis-evidence"><strong>Concern:</strong> ${item.concern}</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            // Summary
+            if (comparison.summary) {
+                html += `
+                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <strong>Summary:</strong> ${comparison.summary}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html || '<p class="empty-state">No discrepancies found</p>';
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById('tab-' + tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function exportResults(format) {
+            if (!currentAnalysis || !selectedPatient) {
+                alert('No analysis results to export');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patient_id: selectedPatient.PatientID,
+                        analysis_id: currentAnalysis.analysis_id,
+                        format: format
+                    })
+                });
+
+                const data = await response.json();
+                alert(data.message || `Export to ${format.toUpperCase()} requested`);
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting results');
+            }
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+    </script>
+</body>
+</html>

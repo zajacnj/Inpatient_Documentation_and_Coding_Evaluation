@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "Inpatient Documentation and Coding Evaluation",
+    "version": "1.0.0",
+    "description": "AI-powered evaluation of inpatient clinical documentation against coded diagnoses"
+  },
+  "ai": {
+    "provider": "va_gpt",
+    "use_azure": true,
+    "model": "gpt-4o",
+    "max_tokens_per_note": 4000,
+    "max_tokens_summary": 1000,
+    "max_tokens_comparison": 4000,
+    "temperature": 0.2,
+    "comment": "Conservative temperature for accurate medical coding"
+  },
+  "processing": {
+    "max_notes_per_admission": 100,
+    "note_summary_threshold_chars": 5000,
+    "batch_size": 5,
+    "comment": "Notes larger than threshold will be summarized first"
+  },
+  "export": {
+    "formats": ["docx", "xlsx", "pdf"],
+    "include_raw_notes": false,
+    "include_ai_reasoning": true,
+    "default_output_dir": "data/exports"
+  },
+  "logging": {
+    "level": "INFO",
+    "audit_enabled": true,
+    "log_dir": "logs"
+  },
+  "ui": {
+    "default_date_range_days": 7,
+    "max_patients_display": 100,
+    "refresh_interval_seconds": 30
+  }
+}

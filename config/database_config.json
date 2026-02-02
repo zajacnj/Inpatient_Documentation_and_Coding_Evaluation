@@ -1,0 +1,41 @@
+{
+  "connection_defaults": {
+    "query_timeout_seconds": 300,
+    "connection_timeout_seconds": 30,
+    "max_retries": 3,
+    "comment": "5-minute query timeout for large document extractions"
+  },
+  "extraction_settings": {
+    "station_focus": 626,
+    "comment": "Station 626 is primary focus for inpatient documentation evaluation"
+  },
+  "databases": {
+    "LSV": {
+      "name": "LSV",
+      "server": "vhacdwdwhsql33.vha.med.va.gov",
+      "database": "LSV",
+      "port": 1433,
+      "authentication": "windows",
+      "query_timeout_seconds": 300,
+      "description": "VA Clinical Data Warehouse - LSV Database",
+      "purpose": "Primary source for TIU notes, vitals, labs, and PTF data",
+      "data_types": ["TIU_notes", "vitals", "labs", "PTF_diagnoses", "inpatient_admissions"]
+    }
+  },
+  "note_types": {
+    "comment": "TIU note types to extract - titles to be confirmed from EHR review",
+    "admission_notes": [],
+    "progress_notes": [],
+    "attending_notes": [],
+    "consult_notes": [],
+    "discharge_summaries": []
+  },
+  "tables": {
+    "comment": "Table mappings to be discovered through LSV schema exploration",
+    "discharge_table": null,
+    "tiu_notes_table": null,
+    "vitals_table": null,
+    "labs_table": null,
+    "ptf_diagnoses_table": null
+  }
+}
