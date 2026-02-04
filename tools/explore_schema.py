@@ -21,6 +21,7 @@ Output:
 import pyodbc
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -29,6 +30,7 @@ SERVER = "vhacdwdwhsql33.vha.med.va.gov"
 DATABASE = "LSV"
 OUTPUT_DIR = Path(__file__).parent.parent / "data"
 OUTPUT_FILE = OUTPUT_DIR / "schema_exploration_results.json"
+CONFIG_FILE = Path(__file__).parent.parent / "config" / "database_config.json"
 
 # Search terms for each category
 SEARCH_CATEGORIES = {
@@ -448,6 +450,9 @@ def main():
         with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, default=str)
 
+        if "--apply-config" in sys.argv:
+            apply_recommendations_to_config(recommendations)
+
         print("Done!")
 
     except Exception as e:
@@ -517,6 +522,35 @@ def generate_recommendations(results):
         }
 
     return recommendations
+
+
+def apply_recommendations_to_config(recommendations):
+    """Apply recommended tables to config/database_config.json."""
+    if not CONFIG_FILE.exists():
+        print(f"Config file not found: {CONFIG_FILE}")
+        return
+
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        tables = config.get("tables", {})
+
+        tables["discharge_table"] = recommendations.get("inpatient_discharge", {}).get("primary")
+        tables["tiu_notes_table"] = recommendations.get("tiu_notes", {}).get("primary")
+        tables["vitals_table"] = recommendations.get("vital_signs", {}).get("primary")
+        tables["labs_table"] = recommendations.get("laboratory", {}).get("primary")
+        tables["ptf_diagnoses_table"] = recommendations.get("diagnoses", {}).get("primary")
+
+        config["tables"] = tables
+
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        print(f"Updated config: {CONFIG_FILE}")
+
+    except Exception as e:
+        print(f"Failed to update config: {e}")
 
 
 if __name__ == "__main__":

@@ -147,6 +147,15 @@
             background-color: #218838;
         }
 
+        .btn-warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+
         .btn-secondary {
             background-color: #6c757d;
             color: white;
@@ -178,6 +187,9 @@
             border-bottom: 1px solid #eee;
             cursor: pointer;
             transition: background-color 0.2s;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
         }
 
         .patient-item:hover {
@@ -187,6 +199,18 @@
         .patient-item.selected {
             background-color: #e7f3ff;
             border-left: 3px solid #004d99;
+        }
+
+        .patient-checkbox {
+            margin-top: 2px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .patient-content {
+            flex: 1;
         }
 
         .patient-item .patient-name {
@@ -491,13 +515,23 @@
                         <label for="start-date">Discharge Date Range</label>
                         <input type="date" id="start-date">
                         <input type="date" id="end-date">
-                        <button class="btn btn-primary btn-block" onclick="searchPatients()">
-                            Search Discharged Patients
-                        </button>
                     </div>
+
+                    <button class="btn btn-primary btn-block" onclick="searchPatients()" style="margin-top: 15px;">
+                        Search Discharged Patients
+                    </button>
 
                     <div class="patient-count" id="patient-count">
                         Select a date range to view discharged patients
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; margin-top: 12px;">
+                        <button class="btn btn-secondary" onclick="sortPatientsByDate('asc')" style="flex: 1; font-size: 13px;">
+                            📅 Discharge ↑ (Oldest)
+                        </button>
+                        <button class="btn btn-secondary" onclick="sortPatientsByDate('desc')" style="flex: 1; font-size: 13px;">
+                            📅 Discharge ↓ (Newest)
+                        </button>
                     </div>
 
                     <div class="patient-list" id="patient-list">
@@ -509,9 +543,22 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-success btn-block" id="review-btn" onclick="startReview()" disabled style="margin-top: 15px;">
-                        Review Hospitalization
-                    </button>
+                    <div class="specialty-filter" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                        <label style="display: block; margin-bottom: 10px; font-weight: 500; color: #555;">Filter by Specialty</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; border: 1px solid #e0e0e0; padding: 10px; border-radius: 4px;" id="specialty-list">
+                            <!-- Populated dynamically -->
+                            <div style="color: #999; font-size: 12px;">Loading specialties...</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; margin-top: 15px;">
+                        <button class="btn btn-success" id="review-btn" onclick="startReview()" disabled style="flex: 2;">
+                            Review Hospitalization
+                        </button>
+                        <button class="btn btn-warning" id="clear-btn" onclick="clearSelectedPatients()" disabled style="flex: 1;">
+                            Clear Selected
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -582,8 +629,9 @@
 
     <script>
         // Global state
-        let selectedPatient = null;
         let currentAnalysis = null;
+        window.selectedPatients = [];
+        window.currentPatients = [];
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -598,7 +646,83 @@
             // Load user info and check status
             loadUserInfo();
             checkSystemStatus();
+            loadSpecialties();
         });
+
+        async function loadSpecialties() {
+            try {
+                const response = await fetch('/api/specialties');
+                const data = await response.json();
+                
+                const specialtyList = document.getElementById('specialty-list');
+                specialtyList.innerHTML = '';
+                
+                if (data.specialties && data.specialties.length > 0) {
+                    data.specialties.forEach((specialty, index) => {
+                        const id = `specialty-${specialty.id}`;
+                        const label = document.createElement('label');
+                        label.style.display = 'flex';
+                        label.style.alignItems = 'center';
+                        label.style.fontWeight = 'normal';
+                        label.style.cursor = 'pointer';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = id;
+                        checkbox.name = 'specialty';
+                        checkbox.value = specialty.name;
+                        checkbox.style.marginRight = '8px';
+                        checkbox.style.cursor = 'pointer';
+                        
+                        const span = document.createElement('span');
+                        span.textContent = specialty.name;
+                        
+                        label.appendChild(checkbox);
+                        label.appendChild(span);
+                        specialtyList.appendChild(label);
+                    });
+
+                    // Bind change handler for client-side filtering
+                    const checkboxes = specialtyList.querySelectorAll('input[name="specialty"]');
+                    checkboxes.forEach(cb => {
+                        cb.addEventListener('change', () => applyClientSideSpecialtyFilter());
+                    });
+                } else {
+                    specialtyList.innerHTML = '<div style="color: #999; font-size: 12px;">No specialties available</div>';
+                }
+            } catch (error) {
+                console.error('Error loading specialties:', error);
+                document.getElementById('specialty-list').innerHTML = '<div style="color: #999; font-size: 12px;">Error loading specialties</div>';
+            }
+        }
+
+        function getSelectedSpecialties() {
+            const specialtyCheckboxes = document.querySelectorAll('input[name="specialty"]:checked');
+            return Array.from(specialtyCheckboxes)
+                .map(cb => cb.value)
+                .filter(v => v && v.trim())
+                .map(v => v.trim().toUpperCase());
+        }
+
+        function applyClientSideSpecialtyFilter() {
+            const allPatients = window.allPatients || [];
+            const selected = getSelectedSpecialties();
+
+            if (!selected.length) {
+                renderPatientList(allPatients);
+                document.getElementById('patient-count').textContent = `${allPatients.length} patients found`;
+                return;
+            }
+
+            const selectedSet = new Set(selected);
+            const filtered = allPatients.filter(p => {
+                const raw = (p.AdmittingTreatingSpecialtyRaw || p.AdmittingTreatingSpecialty || '').trim().toUpperCase();
+                return selectedSet.has(raw);
+            });
+
+            renderPatientList(filtered);
+            document.getElementById('patient-count').textContent = `${filtered.length} patients found`;
+        }
 
         async function loadUserInfo() {
             try {
@@ -641,6 +765,10 @@
                 return;
             }
 
+            // Collect selected specialties
+            const specialtyCheckboxes = document.querySelectorAll('input[name="specialty"]:checked');
+            const selectedSpecialties = Array.from(specialtyCheckboxes).map(cb => cb.value);
+
             const patientList = document.getElementById('patient-list');
             patientList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Searching patients...</p></div>';
 
@@ -650,18 +778,24 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         start_date: startDate,
-                        end_date: endDate
+                        end_date: endDate,
+                        specialties: selectedSpecialties
                     })
                 });
 
                 const data = await response.json();
 
-                if (data.success && data.patients.length > 0) {
-                    document.getElementById('patient-count').textContent = `${data.count} patients found`;
-                    renderPatientList(data.patients);
+                if (data.success && data.patients && data.patients.length > 0) {
+                    window.allPatients = data.patients;
+                    applyClientSideSpecialtyFilter();
+                } else if (!data.success && data.error) {
+                    // Show actual error from backend
+                    document.getElementById('patient-count').textContent = 'Error occurred';
+                    patientList.innerHTML = `<div class="alert alert-error"><strong>Error:</strong> ${data.error}</div>`;
+                    console.error('Backend error:', data.error);
                 } else {
                     document.getElementById('patient-count').textContent = 'No patients found';
-                    patientList.innerHTML = '<div class="empty-state"><p>No discharged patients found for this date range</p></div>';
+                    patientList.innerHTML = '<div class="empty-state"><p>No discharged patients found for this date range and selected specialties</p></div>';
                 }
             } catch (error) {
                 console.error('Error searching patients:', error);
@@ -672,72 +806,219 @@
         function renderPatientList(patients) {
             const patientList = document.getElementById('patient-list');
             patientList.innerHTML = '';
+            
+            // Store patients globally for sorting
+            window.currentPatients = patients;
+            // Initialize selected patients array
+            window.selectedPatients = window.selectedPatients || [];
 
             patients.forEach(patient => {
                 const div = document.createElement('div');
                 div.className = 'patient-item';
-                div.onclick = () => selectPatient(patient, div);
+                const patientId = patient.InpatientSID || patient.PatientSID;
+                
+                // Check if this patient is already selected
+                const isSelected = window.selectedPatients.some(p => 
+                    (p.InpatientSID || p.PatientSID) === patientId
+                );
+                
+                const rawSpecialty = patient.AdmittingTreatingSpecialtyRaw || patient.AdmittingTreatingSpecialty || 'Unknown';
+                const specialtyLabel = rawSpecialty;
+
                 div.innerHTML = `
-                    <div class="patient-name">${patient.PatientName || 'Unknown'}</div>
-                    <div class="patient-details">
-                        ID: ${patient.PatientID}<br>
-                        Admitted: ${formatDate(patient.AdmissionDate)}<br>
-                        Discharged: ${formatDate(patient.DischargeDate)}<br>
-                        LOS: ${patient.LOS || 0} days
+                    <input type="checkbox" class="patient-checkbox" 
+                           data-patient-id="${patientId}"
+                           ${isSelected ? 'checked' : ''}
+                           onclick="event.stopPropagation()">
+                    <div class="patient-content">
+                        <div class="patient-name">${patient.PatientName || 'Unknown'}</div>
+                        <div class="patient-details">
+                            SSN: ${patient.PatientSSN || 'Unknown'}<br>
+                            Unique ID: ${patient.InpatientSID || patient.PatientSID || 'Unknown'}<br>
+                            Specialty: ${specialtyLabel}<br>
+                            Admitted: ${formatDate(patient.AdmissionDate)}<br>
+                            Discharged: ${formatDate(patient.DischargeDate)}<br>
+                            LOS: ${patient.LOS || 0} days
+                        </div>
                     </div>
                 `;
+                
+                // Add checkbox change handler
+                const checkbox = div.querySelector('.patient-checkbox');
+                checkbox.addEventListener('change', () => togglePatientSelection(patient, checkbox.checked));
+                
+                // Add click handler to the entire row (toggles checkbox)
+                div.addEventListener('click', (e) => {
+                    if (e.target !== checkbox) {
+                        checkbox.checked = !checkbox.checked;
+                        togglePatientSelection(patient, checkbox.checked);
+                    }
+                });
+                
+                // Apply selected styling if checked
+                if (isSelected) {
+                    div.classList.add('selected');
+                }
+                
                 patientList.appendChild(div);
             });
+            
+            updateReviewButton();
         }
 
-        function selectPatient(patient, element) {
-            // Remove previous selection
-            document.querySelectorAll('.patient-item.selected').forEach(el => {
-                el.classList.remove('selected');
+        function sortPatientsByDate(direction) {
+            if (!window.currentPatients || window.currentPatients.length === 0) {
+                return;
+            }
+            
+            // Sort by discharge date
+            const sorted = [...window.currentPatients].sort((a, b) => {
+                const dateA = new Date(a.DischargeDate);
+                const dateB = new Date(b.DischargeDate);
+                
+                if (direction === 'asc') {
+                    return dateA - dateB;  // Oldest first
+                } else {
+                    return dateB - dateA;  // Newest first
+                }
             });
+            
+            // Store sorted patients and re-render
+            window.currentPatients = sorted;
+            renderPatientList(sorted);
+        }
 
-            // Add selection to clicked item
-            element.classList.add('selected');
-            selectedPatient = patient;
+        function togglePatientSelection(patient, isChecked) {
+            const patientId = patient.InpatientSID || patient.PatientSID;
+            
+            if (isChecked) {
+                // Add to selected list if not already there
+                if (!window.selectedPatients.some(p => (p.InpatientSID || p.PatientSID) === patientId)) {
+                    window.selectedPatients.push(patient);
+                }
+            } else {
+                // Remove from selected list
+                window.selectedPatients = window.selectedPatients.filter(p => 
+                    (p.InpatientSID || p.PatientSID) !== patientId
+                );
+            }
+            
+            // Update the visual styling
+            const patientItems = document.querySelectorAll('.patient-item');
+            patientItems.forEach(item => {
+                const checkbox = item.querySelector('.patient-checkbox');
+                const itemPatientId = checkbox.getAttribute('data-patient-id');
+                if (itemPatientId === patientId.toString()) {
+                    if (isChecked) {
+                        item.classList.add('selected');
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                }
+            });
+            
+            updateReviewButton();
+        }
 
-            // Enable review button
-            document.getElementById('review-btn').disabled = false;
+        function updateReviewButton() {
+            const reviewBtn = document.getElementById('review-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const count = window.selectedPatients?.length || 0;
+            
+            if (count === 0) {
+                reviewBtn.disabled = true;
+                clearBtn.disabled = true;
+                reviewBtn.textContent = 'Review Hospitalization';
+            } else if (count === 1) {
+                reviewBtn.disabled = false;
+                clearBtn.disabled = false;
+                reviewBtn.textContent = 'Review Hospitalization';
+            } else {
+                reviewBtn.disabled = false;
+                clearBtn.disabled = false;
+                reviewBtn.textContent = `Review ${count} Hospitalizations`;
+            }
+        }
+
+        function clearSelectedPatients() {
+            // Clear the selected patients array
+            window.selectedPatients = [];
+            
+            // Uncheck all checkboxes
+            const checkboxes = document.querySelectorAll('.patient-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Remove selected styling from all patient items
+            const patientItems = document.querySelectorAll('.patient-item');
+            patientItems.forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Update the review button
+            updateReviewButton();
         }
 
         async function startReview() {
-            if (!selectedPatient) {
-                alert('Please select a patient first');
+            if (!window.selectedPatients || window.selectedPatients.length === 0) {
+                alert('Please select at least one patient first');
                 return;
             }
 
-            // Show loading state
-            document.getElementById('summary-empty').style.display = 'none';
-            document.getElementById('summary-content').style.display = 'none';
-            document.getElementById('tab-summary').innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Analyzing documentation...</p><p style="font-size: 0.85rem; color: #666;">This may take a few minutes for large admissions.</p></div>';
-
-            try {
-                const response = await fetch('/api/review/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        patient_id: selectedPatient.PatientID,
-                        admission_id: selectedPatient.AdmissionID || selectedPatient.PatientID
-                    })
-                });
-
-                const data = await response.json();
-                currentAnalysis = data;
-
-                // Render results
-                renderResults(data);
-
-            } catch (error) {
-                console.error('Error starting review:', error);
+            // Process each patient separately
+            for (let i = 0; i < window.selectedPatients.length; i++) {
+                const patient = window.selectedPatients[i];
+                const patientNum = i + 1;
+                const totalPatients = window.selectedPatients.length;
+                
+                // Show loading state
+                document.getElementById('summary-empty').style.display = 'none';
+                document.getElementById('summary-content').style.display = 'none';
+                
+                const progressMsg = totalPatients > 1 
+                    ? `<p style="font-size: 0.9rem; color: #004d99;">Processing patient ${patientNum} of ${totalPatients}</p>` 
+                    : '';
+                
                 document.getElementById('tab-summary').innerHTML = `
-                    <div class="alert alert-error">
-                        Error analyzing documentation: ${error.message}
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>Analyzing documentation for ${patient.PatientName}...</p>
+                        ${progressMsg}
+                        <p style="font-size: 0.85rem; color: #666;">This may take a few minutes for large admissions.</p>
                     </div>
                 `;
+
+                try {
+                    const response = await fetch('/api/review/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            patient_id: patient.PatientID,
+                            admission_id: patient.InpatientSID || patient.AdmissionID || patient.PatientID
+                        })
+                    });
+
+                    const data = await response.json();
+                    currentAnalysis = data;
+
+                    // Render results for this patient
+                    renderResults(data);
+                    
+                    // If more patients to process, wait a moment before continuing
+                    if (i < window.selectedPatients.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+
+                } catch (error) {
+                    console.error('Error starting review:', error);
+                    document.getElementById('tab-summary').innerHTML = `
+                        <div class="alert alert-error">
+                            Error analyzing documentation for ${patient.PatientName}: ${error.message}
+                        </div>
+                    `;
+                    // Continue to next patient even if this one fails
+                }
             }
         }
 
@@ -746,6 +1027,7 @@
             document.getElementById('tab-summary').innerHTML = `
                 <div id="summary-content">
                     <div class="summary-stats" id="summary-stats"></div>
+                    <div id="clinical-notes-section"></div>
                     <div id="summary-text"></div>
                 </div>
             `;
@@ -771,6 +1053,9 @@
                 </div>
             `;
 
+            // Clinical Notes section
+            renderClinicalNotes('clinical-notes-section', data.clinical_notes);
+
             // Summary text
             const summaryText = document.getElementById('summary-text');
             if (data.ai_analysis?.consolidated?.clinical_summary) {
@@ -781,6 +1066,11 @@
                         <h3 style="margin-top: 20px; margin-bottom: 10px;">Recommendations</h3>
                         <ul>${data.recommendations.map(r => `<li>${r}</li>`).join('')}</ul>
                     ` : ''}
+                `;
+            } else {
+                summaryText.innerHTML = `
+                    <h3 style="margin-bottom: 10px;">Clinical Summary</h3>
+                    <p class="empty-state">No clinical notes were extracted for this admission.</p>
                 `;
             }
 
@@ -798,6 +1088,136 @@
 
             // Show export buttons
             document.getElementById('export-buttons').style.display = 'flex';
+        }
+
+        function renderClinicalNotes(containerId, notes) {
+            const container = document.getElementById(containerId);
+
+            if (!notes || notes.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const sortSelectId = `${containerId}-note-sort`;
+            const tableBodyId = `${containerId}-note-table-body`;
+            const noteList = [...notes];
+
+            const renderTable = (order) => {
+                const sorted = noteList.slice().sort((a, b) => {
+                    const aDate = a.NoteDateTime ? new Date(a.NoteDateTime).getTime() : 0;
+                    const bDate = b.NoteDateTime ? new Date(b.NoteDateTime).getTime() : 0;
+                    return order === 'desc' ? bDate - aDate : aDate - bDate;
+                });
+
+                const rows = sorted.map((note) => {
+                    const noteType = note.NoteType || note.note_type || 'Unknown';
+                    const noteDate = note.NoteDateTime ? new Date(note.NoteDateTime).toLocaleString() : 'Unknown Date';
+                    const author = note.AuthorName || note.author_name || 'Unknown Author';
+                    const noteText = note.NoteText || note.note_text || 'No text available';
+                    const noteId = note.NoteID || note.note_id || '';
+
+                    return `
+                        <tr>
+                            <td style="padding: 8px 10px; border-bottom: 1px solid #eee; white-space: nowrap;">${noteDate}</td>
+                            <td style="padding: 8px 10px; border-bottom: 1px solid #eee;">
+                                <a href="#" class="note-title-link" data-note-title="${noteType.replace(/"/g, '&quot;')}" data-note-author="${author.replace(/"/g, '&quot;')}" data-note-date="${noteDate.replace(/"/g, '&quot;')}" data-note-id="${String(noteId).replace(/"/g, '&quot;')}" data-note-text="${noteText.replace(/"/g, '&quot;')}">
+                                    ${noteType}
+                                </a>
+                            </td>
+                            <td style="padding: 8px 10px; border-bottom: 1px solid #eee;">${author}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                const tbody = document.getElementById(tableBodyId);
+                if (tbody) tbody.innerHTML = rows;
+            };
+
+            container.innerHTML = `
+                <div style="margin: 20px 0; padding: 15px; background: #f0f7ff; border-left: 4px solid #004d99; border-radius: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
+                        <h3 style="margin: 0; color: #004d99;">Clinical Notes Used for Analysis</h3>
+                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #333;">
+                            <label for="${sortSelectId}">Sort:</label>
+                            <select id="${sortSelectId}" style="padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px;">
+                                <option value="asc">Oldest to newest</option>
+                                <option value="desc">Newest to oldest</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="max-height: 500px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 4px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                            <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 1;">
+                                <tr>
+                                    <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #ddd;">Date</th>
+                                    <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #ddd;">Note Title</th>
+                                    <th style="text-align: left; padding: 8px 10px; border-bottom: 1px solid #ddd;">Author</th>
+                                </tr>
+                            </thead>
+                            <tbody id="${tableBodyId}"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="${containerId}-note-modal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 9999; align-items: center; justify-content: center;">
+                    <div style="background: white; width: min(900px, 92vw); max-height: 85vh; overflow: hidden; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #eee;">
+                            <div>
+                                <div id="${containerId}-note-modal-title" style="font-weight: bold; color: #333;"></div>
+                                <div id="${containerId}-note-modal-meta" style="font-size: 0.85rem; color: #666;"></div>
+                            </div>
+                            <button type="button" id="${containerId}-note-modal-close" style="border: none; background: #f0f0f0; padding: 6px 10px; border-radius: 4px; cursor: pointer;">Close</button>
+                        </div>
+                        <div id="${containerId}-note-modal-body" style="padding: 16px; overflow-y: auto; white-space: pre-wrap; font-size: 0.95rem; color: #333;"></div>
+                    </div>
+                </div>
+            `;
+
+            const sortSelect = document.getElementById(sortSelectId);
+            if (sortSelect) {
+                sortSelect.addEventListener('change', (e) => {
+                    renderTable(e.target.value);
+                });
+            }
+
+            const modal = document.getElementById(`${containerId}-note-modal`);
+            const modalTitle = document.getElementById(`${containerId}-note-modal-title`);
+            const modalMeta = document.getElementById(`${containerId}-note-modal-meta`);
+            const modalBody = document.getElementById(`${containerId}-note-modal-body`);
+            const modalClose = document.getElementById(`${containerId}-note-modal-close`);
+
+            const closeModal = () => {
+                if (modal) modal.style.display = 'none';
+            };
+
+            if (modalClose) {
+                modalClose.addEventListener('click', closeModal);
+            }
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+            }
+
+            container.addEventListener('click', (e) => {
+                const link = e.target.closest('.note-title-link');
+                if (!link) return;
+                e.preventDefault();
+
+                const title = link.getAttribute('data-note-title') || 'Note';
+                const author = link.getAttribute('data-note-author') || 'Unknown Author';
+                const date = link.getAttribute('data-note-date') || 'Unknown Date';
+                const noteId = link.getAttribute('data-note-id');
+                const text = link.getAttribute('data-note-text') || 'No text available';
+
+                if (modalTitle) modalTitle.textContent = title;
+                if (modalMeta) {
+                    modalMeta.textContent = `${date} | ${author}${noteId ? ` | ID: ${noteId}` : ''}`;
+                }
+                if (modalBody) modalBody.textContent = text;
+                if (modal) modal.style.display = 'flex';
+            });
+
+            renderTable('asc');
         }
 
         function renderDiagnoses(containerId, consolidated) {
@@ -847,7 +1267,7 @@
                 });
             }
 
-            container.innerHTML = html || '<p class="empty-state">No diagnoses found</p>';
+            container.innerHTML = html || '<p class="empty-state">No diagnoses extracted</p>';
         }
 
         function renderCodedDiagnoses(containerId, diagnoses) {
@@ -887,62 +1307,67 @@
 
             let html = '';
 
-            // Matches
-            if (comparison.matches?.length > 0) {
-                html += '<h3 style="margin-bottom: 10px; color: #28a745;">Matches</h3>';
-                comparison.matches.forEach(match => {
-                    html += `
-                        <div class="diagnosis-card" style="border-left-color: #28a745;">
-                            <span class="diagnosis-name">${match.documented || match.coded}</span>
-                            <span class="icd-code">${match.icd10 || 'N/A'}</span>
-                        </div>
-                    `;
-                });
-            }
-
-            // Documented but not coded
-            if (comparison.documented_not_coded?.length > 0) {
-                html += '<h3 style="margin: 20px 0 10px; color: #ffc107;">Documented but Not Coded</h3>';
-                comparison.documented_not_coded.forEach(item => {
-                    html += `
-                        <div class="diagnosis-card discrepancy">
-                            <div class="diagnosis-header">
-                                <span class="diagnosis-name">${item.diagnosis}</span>
-                                <span class="icd-code">${item.suggested_icd10 || 'Needs review'}</span>
+            // ================================================================
+            // ORIGINAL COMPARISON (BASIC MATCHES)
+            // ================================================================
+            if (comparison) {
+                // Matches
+                if (comparison.matches?.length > 0) {
+                    html += '<h3 style="margin-top: 20px; margin-bottom: 10px; color: #28a745;">Diagnosis Matches</h3>';
+                    comparison.matches.forEach(match => {
+                        html += `
+                            <div class="diagnosis-card" style="border-left-color: #28a745;">
+                                <span class="diagnosis-name">${match.documented || match.coded}</span>
+                                <span class="icd-code">${match.icd10 || 'N/A'}</span>
                             </div>
-                            ${item.evidence ? `<div class="diagnosis-evidence"><strong>Evidence:</strong> ${item.evidence}</div>` : ''}
-                            ${item.impact ? `<div style="margin-top: 8px; font-size: 0.85rem;"><strong>Impact:</strong> ${item.impact}</div>` : ''}
-                        </div>
-                    `;
-                });
-            }
+                        `;
+                    });
+                }
 
-            // Coded but not documented
-            if (comparison.coded_not_documented?.length > 0) {
-                html += '<h3 style="margin: 20px 0 10px; color: #dc3545;">Coded but Not Clearly Documented</h3>';
-                comparison.coded_not_documented.forEach(item => {
-                    html += `
-                        <div class="diagnosis-card missing">
-                            <div class="diagnosis-header">
-                                <span class="diagnosis-name">${item.description || 'Unknown'}</span>
-                                <span class="icd-code">${item.icd10 || 'N/A'}</span>
+                // Documented but not coded
+                if (comparison.documented_not_coded?.length > 0) {
+                    html += '<h3 style="margin: 20px 0 10px; color: #ffc107;">Documented but Not Coded</h3>';
+                    comparison.documented_not_coded.forEach(item => {
+                        html += `
+                            <div class="diagnosis-card discrepancy">
+                                <div class="diagnosis-header">
+                                    <span class="diagnosis-name">${item.diagnosis}</span>
+                                    <span class="icd-code">${item.suggested_icd10 || 'Needs review'}</span>
+                                </div>
+                                ${item.evidence ? `<div class="diagnosis-evidence"><strong>Evidence:</strong> ${item.evidence}</div>` : ''}
+                                ${item.impact ? `<div style="margin-top: 8px; font-size: 0.85rem;"><strong>Impact:</strong> ${item.impact}</div>` : ''}
                             </div>
-                            ${item.concern ? `<div class="diagnosis-evidence"><strong>Concern:</strong> ${item.concern}</div>` : ''}
+                        `;
+                    });
+                }
+
+                // Coded but not documented
+                if (comparison.coded_not_documented?.length > 0) {
+                    html += '<h3 style="margin: 20px 0 10px; color: #dc3545;">Coded but Not Clearly Documented</h3>';
+                    comparison.coded_not_documented.forEach(item => {
+                        html += `
+                            <div class="diagnosis-card missing">
+                                <div class="diagnosis-header">
+                                    <span class="diagnosis-name">${item.description || 'Unknown'}</span>
+                                    <span class="icd-code">${item.icd10 || 'N/A'}</span>
+                                </div>
+                                ${item.concern ? `<div class="diagnosis-evidence"><strong>Concern:</strong> ${item.concern}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+                // Summary
+                if (comparison.summary) {
+                    html += `
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <strong>Summary:</strong> ${comparison.summary}
                         </div>
                     `;
-                });
+                }
             }
 
-            // Summary
-            if (comparison.summary) {
-                html += `
-                    <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                        <strong>Summary:</strong> ${comparison.summary}
-                    </div>
-                `;
-            }
-
-            container.innerHTML = html || '<p class="empty-state">No discrepancies found</p>';
+            container.innerHTML = html || '<p class="empty-state">No comparison data available</p>';
         }
 
         function showTab(tabName) {

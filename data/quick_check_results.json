@@ -1,0 +1,163 @@
+{
+  "1. TIU.TIUDocument columns": [
+    {
+      "COLUMN_NAME": "TIUDocumentSID",
+      "DATA_TYPE": "bigint",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "TIUDocumentIEN",
+      "DATA_TYPE": "varchar",
+      "CHARACTER_MAXIMUM_LENGTH": 50
+    },
+    {
+      "COLUMN_NAME": "Sta3n",
+      "DATA_TYPE": "smallint",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "TIUDocumentDefinitionSID",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "PatientSID",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "VisitSID",
+      "DATA_TYPE": "bigint",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "ParentTIUDocumentDefinitionSID",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "TIUStatusSID",
+      "DATA_TYPE": "int",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "ParentTIUDocumentSID",
+      "DATA_TYPE": "bigint",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    },
+    {
+      "COLUMN_NAME": "EpisodeBeginDateTime",
+      "DATA_TYPE": "datetime2",
+      "CHARACTER_MAXIMUM_LENGTH": null
+    }
+  ],
+  "2. Find ReportText table": [
+    {
+      "TABLE_SCHEMA": "SPatientText",
+      "TABLE_NAME": "RadiologyReportText"
+    }
+  ],
+  "3. TIU-related schemas": [
+    {
+      "TABLE_SCHEMA": "TIU"
+    },
+    {
+      "TABLE_SCHEMA": "STIUNotes"
+    }
+  ],
+  "4. Transfer/501 tables": [
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "Census501"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "Census501Diagnosis"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "Inpatient501Multiple"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "Inpatient501Transaction"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "Inpatient501TransactionDiagnosis"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "PatientTransfer"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "PatientTransferDiagnosis"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "SpecialtyTransfer"
+    },
+    {
+      "TABLE_SCHEMA": "Inpat",
+      "TABLE_NAME": "SpecialtyTransferDiagnosis"
+    }
+  ],
+  "5. DIM.TreatingSpecialty sample": [
+    {
+      "TreatingSpecialtySID": -1,
+      "TreatingSpecialtyIEN": "-1",
+      "Sta3n": -1,
+      "TreatingSpecialtyName": "*Missing*",
+      "SpecialtySID": -1,
+      "Specialty": "*Missing*",
+      "ServiceSectionSID": -1,
+      "ServiceSection": "*Missing*",
+      "Abbreviation": "*Missing*"
+    },
+    {
+      "TreatingSpecialtySID": 0,
+      "TreatingSpecialtyIEN": "0",
+      "Sta3n": 0,
+      "TreatingSpecialtyName": "*Unknown at this time*",
+      "SpecialtySID": 0,
+      "Specialty": "*Unknown at this time*",
+      "ServiceSectionSID": 0,
+      "ServiceSection": "*Unknown at this time*",
+      "Abbreviation": "*Unknown at this time*"
+    },
+    {
+      "TreatingSpecialtySID": 800000000,
+      "TreatingSpecialtyIEN": "1",
+      "Sta3n": 436,
+      "TreatingSpecialtyName": "GENERAL (ACUTE MEDICINE)",
+      "SpecialtySID": 800000015,
+      "Specialty": "GENERAL(ACUTE MEDICINE)",
+      "ServiceSectionSID": 19242,
+      "ServiceSection": "MEDICAL SERVICE",
+      "Abbreviation": "MED"
+    }
+  ],
+  "6. Note titles with 'admission'": [
+    {
+      "TIUDocumentDefinitionSID": 800000078,
+      "TIUDocumentDefinitionPrintName": "ADMISSION PANEL;1;2Y"
+    },
+    {
+      "TIUDocumentDefinitionSID": 800000157,
+      "TIUDocumentDefinitionPrintName": "ADMISSION ASSESSMENT"
+    },
+    {
+      "TIUDocumentDefinitionSID": 800000225,
+      "TIUDocumentDefinitionPrintName": "OBSERVATION NURSING ADMISSION ASSESSMENT-"
+    },
+    {
+      "TIUDocumentDefinitionSID": 800000300,
+      "TIUDocumentDefinitionPrintName": "CLC ADMISSION HISTORY AND PHYSICAL"
+    },
+    {
+      "TIUDocumentDefinitionSID": 800000374,
+      "TIUDocumentDefinitionPrintName": "ADMISSION NOTE"
+    }
+  ]
+}

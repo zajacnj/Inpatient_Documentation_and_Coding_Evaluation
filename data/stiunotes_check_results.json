@@ -1,0 +1,211 @@
+{
+  "stiunotes_tables": [
+    "TIUDocument_8925_02",
+    "TIUDocument_8925"
+  ],
+  "specialty_transfer_columns": [
+    {
+      "COLUMN_NAME": "SpecialtyTransferSID",
+      "DATA_TYPE": "bigint"
+    },
+    {
+      "COLUMN_NAME": "PatientMovementIEN",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "Sta3n",
+      "DATA_TYPE": "smallint"
+    },
+    {
+      "COLUMN_NAME": "InpatientSID",
+      "DATA_TYPE": "bigint"
+    },
+    {
+      "COLUMN_NAME": "OrdinalNumber",
+      "DATA_TYPE": "smallint"
+    },
+    {
+      "COLUMN_NAME": "PatientSID",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "SpecialtyTransferDateTime",
+      "DATA_TYPE": "datetime2"
+    },
+    {
+      "COLUMN_NAME": "SpecialtyTransferVistaErrorDate",
+      "DATA_TYPE": "varchar"
+    },
+    {
+      "COLUMN_NAME": "SpecialtyTransferDateTimeTransformSID",
+      "DATA_TYPE": "bigint"
+    },
+    {
+      "COLUMN_NAME": "SpecialtyTransferDateSID",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "FacilityMovementTypeSID",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "PrimaryPhysicianStaffSID",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "TreatingSpecialtySID",
+      "DATA_TYPE": "int"
+    },
+    {
+      "COLUMN_NAME": "RelatedPhysicalPatientTransferSID",
+      "DATA_TYPE": "bigint"
+    },
+    {
+      "COLUMN_NAME": "RelatedPhysicalTransactionType",
+      "DATA_TYPE": "varchar"
+    }
+  ],
+  "specialty_transfer_sample": [
+    {
+      "SpecialtyTransferSID": 800000001841,
+      "PatientMovementIEN": "26334",
+      "Sta3n": 504,
+      "InpatientSID": 800002841445,
+      "OrdinalNumber": null,
+      "PatientSID": 1467401,
+      "SpecialtyTransferDateTime": null,
+      "SpecialtyTransferVistaErrorDate": "0",
+      "SpecialtyTransferDateTimeTransformSID": 4,
+      "SpecialtyTransferDateSID": -1,
+      "FacilityMovementTypeSID": 800000389,
+      "PrimaryPhysicianStaffSID": -1,
+      "TreatingSpecialtySID": -1,
+      "RelatedPhysicalPatientTransferSID": -1,
+      "RelatedPhysicalTransactionType": null,
+      "AttendingPhysicianStaffSID": -1,
+      "EnteredByStaffSID": -1,
+      "EnteredOnDateTime": null,
+      "LastEditedByStaffSID": -1,
+      "LastEditedOnDateTime": null,
+      "SpecialtyChangeFlag": "N",
+      "AdmitDateTime": "1991-05-14 18:31:00",
+      "AdmitVistaErrorDate": null,
+      "AdmitDateTimeTransformSID": null,
+      "MovementDateTime": null,
+      "MovementVistaErrorDate": null,
+      "MovementDateTimeTransformSID": null,
+      "TransferDateTime": null,
+      "TransferVistaErrorDate": null,
+      "TransferDateTimeTransformSID": null,
+      "SpecialtyCDR": null,
+      "TransmitFlag": null,
+      "LosingSpecialtySID": null,
+      "LosingService": null,
+      "TransferDRGSID": null,
+      "LOSInService": null,
+      "LOSCumulative": null,
+      "ProviderSID": null,
+      "SuicideSelfInflict": null,
+      "PsychSeverity": null,
+      "PsychAssessment": null,
+      "PsychHighLevel": null,
+      "LeaveDays": null,
+      "AbusedSubstanceSID": null,
+      "PassDays": null
+    },
+    {
+      "SpecialtyTransferSID": 800000006500,
+      "PatientMovementIEN": "29472",
+      "Sta3n": 504,
+      "InpatientSID": 800002841447,
+      "OrdinalNumber": null,
+      "PatientSID": 1387644,
+      "SpecialtyTransferDateTime": null,
+      "SpecialtyTransferVistaErrorDate": "0",
+      "SpecialtyTransferDateTimeTransformSID": 4,
+      "SpecialtyTransferDateSID": -1,
+      "FacilityMovementTypeSID": 800000389,
+      "PrimaryPhysicianStaffSID": -1,
+      "TreatingSpecialtySID": 800000366,
+      "RelatedPhysicalPatientTransferSID": -1,
+      "RelatedPhysicalTransactionType": null,
+      "AttendingPhysicianStaffSID": -1,
+      "EnteredByStaffSID": -1,
+      "EnteredOnDateTime": null,
+      "LastEditedByStaffSID": -1,
+      "LastEditedOnDateTime": null,
+      "SpecialtyChangeFlag": "N",
+      "AdmitDateTime": "1991-07-16 15:07:00",
+      "AdmitVistaErrorDate": null,
+      "AdmitDateTimeTransformSID": null,
+      "MovementDateTime": null,
+      "MovementVistaErrorDate": null,
+      "MovementDateTimeTransformSID": null,
+      "TransferDateTime": null,
+      "TransferVistaErrorDate": null,
+      "TransferDateTimeTransformSID": null,
+      "SpecialtyCDR": null,
+      "TransmitFlag": null,
+      "LosingSpecialtySID": null,
+      "LosingService": null,
+      "TransferDRGSID": null,
+      "LOSInService": null,
+      "LOSCumulative": null,
+      "ProviderSID": null,
+      "SuicideSelfInflict": null,
+      "PsychSeverity": null,
+      "PsychAssessment": null,
+      "PsychHighLevel": null,
+      "LeaveDays": null,
+      "AbusedSubstanceSID": null,
+      "PassDays": null
+    },
+    {
+      "SpecialtyTransferSID": 1200000010194,
+      "PatientMovementIEN": "84393",
+      "Sta3n": 506,
+      "InpatientSID": 1200004564229,
+      "OrdinalNumber": null,
+      "PatientSID": 1579400,
+      "SpecialtyTransferDateTime": null,
+      "SpecialtyTransferVistaErrorDate": "0",
+      "SpecialtyTransferDateTimeTransformSID": 4,
+      "SpecialtyTransferDateSID": -1,
+      "FacilityMovementTypeSID": 1200000048,
+      "PrimaryPhysicianStaffSID": -1,
+      "TreatingSpecialtySID": 1200000604,
+      "RelatedPhysicalPatientTransferSID": -1,
+      "RelatedPhysicalTransactionType": null,
+      "AttendingPhysicianStaffSID": -1,
+      "EnteredByStaffSID": -1,
+      "EnteredOnDateTime": null,
+      "LastEditedByStaffSID": -1,
+      "LastEditedOnDateTime": null,
+      "SpecialtyChangeFlag": "N",
+      "AdmitDateTime": "1985-11-01 00:00:00",
+      "AdmitVistaErrorDate": null,
+      "AdmitDateTimeTransformSID": null,
+      "MovementDateTime": null,
+      "MovementVistaErrorDate": null,
+      "MovementDateTimeTransformSID": null,
+      "TransferDateTime": null,
+      "TransferVistaErrorDate": null,
+      "TransferDateTimeTransformSID": null,
+      "SpecialtyCDR": null,
+      "TransmitFlag": null,
+      "LosingSpecialtySID": null,
+      "LosingService": null,
+      "TransferDRGSID": null,
+      "LOSInService": null,
+      "LOSCumulative": null,
+      "ProviderSID": null,
+      "SuicideSelfInflict": null,
+      "PsychSeverity": null,
+      "PsychAssessment": null,
+      "PsychHighLevel": null,
+      "LeaveDays": null,
+      "AbusedSubstanceSID": null,
+      "PassDays": null
+    }
+  ]
+}

@@ -1,0 +1,793 @@
+{
+  "verification_date": "2026-02-03T11:47:35.843635",
+  "server": "VHACDWRB03.VHA.MED.VA.GOV",
+  "database": "CDWWORK",
+  "key_tables": {
+    "STIUNOTES.ReportText": {
+      "exists": false,
+      "schema": "STIUNOTES",
+      "table": "ReportText",
+      "error": "Table not found"
+    },
+    "TIU.TIUDocument": {
+      "exists": true,
+      "schema": "TIU",
+      "table": "TIUDocument",
+      "type": "VIEW",
+      "column_count": 94,
+      "estimated_rows": "Unknown",
+      "columns": [
+        {
+          "name": "TIUDocumentSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TIUDocumentIEN",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "NO"
+        },
+        {
+          "name": "Sta3n",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TIUDocumentDefinitionSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "PatientSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "VisitSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "ParentTIUDocumentDefinitionSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "TIUStatusSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "ParentTIUDocumentSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeBeginDateTime",
+          "type": "datetime2",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeBeginVistaErrorDate",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeBeginDateTimeTransformSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeBeginDateSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeEndDateTime",
+          "type": "datetime2",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeEndVistaErrorDate",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "EpisodeEndDateTimeTransformSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "ReportUrgency",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "CreditStopCodeOnCompletionFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "DischargeDateCorrectionFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "EntryDateTime",
+          "type": "datetime2",
+          "max_length": null,
+          "nullable": "YES"
+        }
+      ]
+    },
+    "DIM.TIUDocumentDefinition": {
+      "exists": true,
+      "schema": "Dim",
+      "table": "TIUDocumentDefinition",
+      "type": "VIEW",
+      "column_count": 29,
+      "estimated_rows": "Unknown",
+      "columns": [
+        {
+          "name": "TIUDocumentDefinitionSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TIUDocumentDefinitionIEN",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "NO"
+        },
+        {
+          "name": "Sta3n",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TIUDocumentDefinition",
+          "type": "varchar",
+          "max_length": 100,
+          "nullable": "YES"
+        },
+        {
+          "name": "TIUDocumentDefinitionAbbreviation",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "TIUDocumentDefinitionType",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "TIUDocumentDefinitionPrintName",
+          "type": "varchar",
+          "max_length": 100,
+          "nullable": "YES"
+        },
+        {
+          "name": "PersonalOwnerStaffSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "UserClassSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "TIUStatusSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "SharedFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "NationalStandardFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "PostingIndicator",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "LaygoAllowedFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "TargetTextFieldSubscript",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "BoilerplateOnUploadEnabledFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "DistributeFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "SuppressVisitSelectionFlag",
+          "type": "char",
+          "max_length": 1,
+          "nullable": "YES"
+        },
+        {
+          "name": "EditTemplate",
+          "type": "varchar",
+          "max_length": 100,
+          "nullable": "YES"
+        },
+        {
+          "name": "PrintFormHeader",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        }
+      ]
+    },
+    "DIM.TreatingSpecialty": {
+      "exists": true,
+      "schema": "Dim",
+      "table": "TreatingSpecialty",
+      "type": "VIEW",
+      "column_count": 9,
+      "estimated_rows": "Unknown",
+      "columns": [
+        {
+          "name": "TreatingSpecialtySID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TreatingSpecialtyIEN",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "NO"
+        },
+        {
+          "name": "Sta3n",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "TreatingSpecialtyName",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "SpecialtySID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "Specialty",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "ServiceSectionSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "ServiceSection",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "Abbreviation",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        }
+      ]
+    },
+    "Inpat.Inpatient": {
+      "exists": true,
+      "schema": "Inpat",
+      "table": "Inpatient",
+      "type": "VIEW",
+      "column_count": 92,
+      "estimated_rows": "Unknown",
+      "columns": [
+        {
+          "name": "InpatientSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "PTFIEN",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "NO"
+        },
+        {
+          "name": "Sta3n",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "NO"
+        },
+        {
+          "name": "PatientSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "MeansTestIndicator",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitDateTime",
+          "type": "datetime2",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitVistaErrorDate",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitDateTimeTransformSID",
+          "type": "bigint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitDateSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitSourceSID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "AdmitEligibilitySID",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "TransferFromFacility",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "TransferFromFacilitySuffix",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "SourceOfPayment",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "SuicideSelfInflict",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "PsychSeverity",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "PsychFunctional",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "PsychHighLevel",
+          "type": "int",
+          "max_length": null,
+          "nullable": "YES"
+        },
+        {
+          "name": "TransmissionStatus",
+          "type": "varchar",
+          "max_length": 50,
+          "nullable": "YES"
+        },
+        {
+          "name": "DischargeFromFacility",
+          "type": "smallint",
+          "max_length": null,
+          "nullable": "YES"
+        }
+      ]
+    }
+  },
+  "transfer_tables": [
+    {
+      "schema": "Inpat",
+      "table": "Census501",
+      "type": "VIEW",
+      "matched_pattern": "%501%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "Census501Diagnosis",
+      "type": "VIEW",
+      "matched_pattern": "%501%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "Inpatient501Multiple",
+      "type": "VIEW",
+      "matched_pattern": "%501%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "Inpatient501Transaction",
+      "type": "VIEW",
+      "matched_pattern": "%501%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "Inpatient501TransactionDiagnosis",
+      "type": "VIEW",
+      "matched_pattern": "%501%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "PatientTransfer",
+      "type": "VIEW",
+      "matched_pattern": "%transfer%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "PatientTransferDiagnosis",
+      "type": "VIEW",
+      "matched_pattern": "%transfer%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "SpecialtyTransfer",
+      "type": "VIEW",
+      "matched_pattern": "%transfer%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "SpecialtyTransferDiagnosis",
+      "type": "VIEW",
+      "matched_pattern": "%transfer%"
+    },
+    {
+      "schema": "Dim",
+      "table": "FacilityMovementType",
+      "type": "VIEW",
+      "matched_pattern": "%movement%"
+    },
+    {
+      "schema": "Dim",
+      "table": "MASMovementType",
+      "type": "VIEW",
+      "matched_pattern": "%movement%"
+    },
+    {
+      "schema": "Inpat",
+      "table": "ProvisionalMovement",
+      "type": "VIEW",
+      "matched_pattern": "%movement%"
+    }
+  ],
+  "sample_note_titles": [
+    {
+      "sid": 1600132055,
+      "print_name": "\u0002POTASSIUM",
+      "ien": "6519"
+    },
+    {
+      "sid": 1600179157,
+      "print_name": "\u0016NON-FASTING TRIGL,COBAS,NONCOBAS;1;1Y",
+      "ien": "10040"
+    },
+    {
+      "sid": 1600206845,
+      "print_name": "\u0016NTNP HEMOGLOBIN A1C",
+      "ien": "4680"
+    },
+    {
+      "sid": 1600210875,
+      "print_name": "\u0016NTNP HEMOGLOBIN A1C",
+      "ien": "3116"
+    },
+    {
+      "sid": 1600206800,
+      "print_name": "\u0016NTNP HEMOGLOBIN/HEMATOCRIT",
+      "ien": "3067"
+    },
+    {
+      "sid": 1600210857,
+      "print_name": "\u0016NTNP HEMOGLOBIN/HEMATOCRIT",
+      "ien": "3112"
+    },
+    {
+      "sid": 1600207690,
+      "print_name": "\u0016NTNP HEMOGLOBIN/HEMATOCRIT",
+      "ien": "4386"
+    },
+    {
+      "sid": 1600210880,
+      "print_name": "\u0016NTNP IRON SATURATION",
+      "ien": "3125"
+    },
+    {
+      "sid": 1600206818,
+      "print_name": "\u0016NTNP PHENOBARBITAL",
+      "ien": "3085"
+    },
+    {
+      "sid": 1600206806,
+      "print_name": "\u0016NTNP VITAMIN B12",
+      "ien": "3073"
+    },
+    {
+      "sid": 1600204350,
+      "print_name": "\u0016NTNP VITAMIN D",
+      "ien": "5811"
+    },
+    {
+      "sid": 800142926,
+      "print_name": "   ",
+      "ien": "5593"
+    },
+    {
+      "sid": 1000046590,
+      "print_name": "  NU - TRIAGE-HEENT-UPPER RESPIRATORY INFECTION",
+      "ien": "1482"
+    },
+    {
+      "sid": 1200086805,
+      "print_name": " - ALLERGY CLINIC (BP)",
+      "ien": "1288"
+    },
+    {
+      "sid": 800001700,
+      "print_name": " ABNORMAL INVOLUNTARY MOVEMENT SCALE (AIMS) NOTE",
+      "ien": "702"
+    },
+    {
+      "sid": 1000063224,
+      "print_name": " ABUSE/NEGLECT REPORTING NOTE",
+      "ien": "2248"
+    },
+    {
+      "sid": 1400063088,
+      "print_name": " ADMISSION HISTORY AND PHYSICAL EXAM",
+      "ien": "1526"
+    },
+    {
+      "sid": 1400061785,
+      "print_name": " ADMISSION HISTORY AND PHYSICAL EXAM",
+      "ien": "1527"
+    },
+    {
+      "sid": 1000038561,
+      "print_name": " ADULT DAY HEALTH CARE",
+      "ien": "1353"
+    },
+    {
+      "sid": 1000059010,
+      "print_name": " ADVANCE DIRECTIVE",
+      "ien": "1177"
+    },
+    {
+      "sid": 1200056889,
+      "print_name": " ADVANCE DIRECTIVE DISCUSSION",
+      "ien": "1853"
+    },
+    {
+      "sid": 1400028547,
+      "print_name": " AED PHOENIX PT WORK PHONE",
+      "ien": "1592"
+    },
+    {
+      "sid": 1600149939,
+      "print_name": " ALBUMIN CREAT RATIO LAST 3",
+      "ien": "8262"
+    },
+    {
+      "sid": 1200022967,
+      "print_name": " ALLERGY CONSULT",
+      "ien": "361"
+    },
+    {
+      "sid": 1000013653,
+      "print_name": " ANGER MANAGEMENT INPATIENT",
+      "ien": "2687"
+    },
+    {
+      "sid": 1000017298,
+      "print_name": " ANGER MANAGEMENT PROGRAM ATTEMPT TO INTERVIEW NOTE",
+      "ien": "2613"
+    },
+    {
+      "sid": 1000015603,
+      "print_name": " ANGER MANAGEMENT PROGRAM BEHAVIOR CONTRACT",
+      "ien": "2615"
+    },
+    {
+      "sid": 1000019318,
+      "print_name": " ANGER MANAGEMENT PROGRAM INTERVIEW NOTE",
+      "ien": "2612"
+    },
+    {
+      "sid": 1000016275,
+      "print_name": " ANGER MANAGEMENT PROGRAM NURSING NOTE",
+      "ien": "2614"
+    },
+    {
+      "sid": 1000013039,
+      "print_name": " ANGER MGMT PROGRAM BEHAVIOR CONTRACT PRE QUESTIONNAIRE",
+      "ien": "2616"
+    },
+    {
+      "sid": 1200084650,
+      "print_name": " APPTS 10 FUTURE (WITHIN 6 MONTHS) (L)",
+      "ien": "1076"
+    },
+    {
+      "sid": 1200055025,
+      "print_name": " ARNP DOM ADMIT & ED NOTE (BP)",
+      "ien": "1214"
+    },
+    {
+      "sid": 1200056316,
+      "print_name": " ARNP DOM SICK CALL PROGRESS NOTE (BP)",
+      "ien": "1215"
+    },
+    {
+      "sid": 1600152873,
+      "print_name": " AST,VI;1;2Y",
+      "ien": "17658"
+    },
+    {
+      "sid": 1600184513,
+      "print_name": " AST,VI;4;5Y",
+      "ien": "18448"
+    },
+    {
+      "sid": 1000001163,
+      "print_name": " ATTENDING (FREE TEXT) NOTE",
+      "ien": "1494"
+    },
+    {
+      "sid": 1400009037,
+      "print_name": " ATTENDING INTENSIVIST",
+      "ien": "2414"
+    },
+    {
+      "sid": 1200119628,
+      "print_name": " AUDIO SHA DBQ NOTE",
+      "ien": "3383"
+    },
+    {
+      "sid": 1200007785,
+      "print_name": " AUDIOLOGY FOLLOW-UP (BP)",
+      "ien": "700"
+    },
+    {
+      "sid": 800142826,
+      "print_name": " AUDIT-C",
+      "ien": "4606"
+    },
+    {
+      "sid": 1400013294,
+      "print_name": " AUDITORY BRAINSTEM RESPONSE REPORT",
+      "ien": "2486"
+    },
+    {
+      "sid": 1400071601,
+      "print_name": " BARIATRIC SURG INFO SESSION",
+      "ien": "3568"
+    },
+    {
+      "sid": 1000012192,
+      "print_name": " BEHAV NEUROLOGY CONSULTATION/DR. KESSLER",
+      "ien": "1890"
+    },
+    {
+      "sid": 1200019349,
+      "print_name": " BEHAVIOR MONITORING FLOWSHEET",
+      "ien": "1061"
+    },
+    {
+      "sid": 1400041884,
+      "print_name": " BEHAVIORAL RESTRAINT REASSESSMENT",
+      "ien": "1584"
+    },
+    {
+      "sid": 800059383,
+      "print_name": " BHOST/CHEM DEP/CLINIC NOTE",
+      "ien": "290"
+    },
+    {
+      "sid": 800072498,
+      "print_name": " BHOST/H & P",
+      "ien": "1353"
+    },
+    {
+      "sid": 1400008378,
+      "print_name": " BLIND CENTER PRE-ADMISSION",
+      "ien": "1540"
+    },
+    {
+      "sid": 1000008883,
+      "print_name": " BRADEN SCALE PROGRESS NOTE",
+      "ien": "2838"
+    },
+    {
+      "sid": 1200023376,
+      "print_name": " BRC D/C Planning Note - T",
+      "ien": "720"
+    }
+  ]
+}

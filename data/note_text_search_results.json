@@ -1,0 +1,28 @@
+{
+  "note_text_tables": [
+    {
+      "schema": "SPatientText",
+      "table": "RadiologyReportText",
+      "type": "VIEW",
+      "matched_pattern": "%ReportText%"
+    }
+  ],
+  "tiu_schemas": [
+    "STIUNotes",
+    "TIU"
+  ],
+  "reporttext_all_schemas": [
+    {
+      "schema": "SPatientText",
+      "table": "RadiologyReportText",
+      "type": "VIEW"
+    }
+  ],
+  "tiu_document_text_columns": [
+    {
+      "name": "ReportUrgency",
+      "type": "varchar",
+      "max_length": 50
+    }
+  ]
+}

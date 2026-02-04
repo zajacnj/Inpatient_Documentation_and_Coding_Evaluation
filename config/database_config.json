@@ -11,31 +11,98 @@
   },
   "databases": {
     "LSV": {
-      "name": "LSV",
-      "server": "vhacdwdwhsql33.vha.med.va.gov",
-      "database": "LSV",
+      "name": "CDWWORK",
+      "server": "VHACDWRB03.VHA.MED.VA.GOV",
+      "database": "CDWWORK",
       "port": 1433,
       "authentication": "windows",
       "query_timeout_seconds": 300,
-      "description": "VA Clinical Data Warehouse - LSV Database",
-      "purpose": "Primary source for TIU notes, vitals, labs, and PTF data",
-      "data_types": ["TIU_notes", "vitals", "labs", "PTF_diagnoses", "inpatient_admissions"]
+      "description": "VA Clinical Data Warehouse - CDWWORK Database (formerly LSV)",
+      "purpose": "Complete source with all data tables plus TIU note text",
+      "data_types": [
+        "TIU_notes",
+        "TIU_note_text",
+        "treating_specialties",
+        "admissions",
+        "transfer_501s",
+        "vitals",
+        "labs",
+        "PTF_diagnoses",
+        "inpatient_admissions"
+      ]
     }
   },
   "note_types": {
-    "comment": "TIU note types to extract - titles to be confirmed from EHR review",
-    "admission_notes": [],
-    "progress_notes": [],
-    "attending_notes": [],
-    "consult_notes": [],
-    "discharge_summaries": []
+    "comment": "TIU note types to extract - focus on admission, daily progress, and consult notes",
+    "admission_notes": [
+      "ADMISSION NOTE",
+      "ADMISSION ASSESSMENT",
+      "ADMISSION HISTORY AND PHYSICAL EXAM"
+    ],
+    "progress_notes": [
+      "PROGRESS NOTE",
+      "DAILY PROGRESS NOTE",
+      "CLINICAL NOTE"
+    ],
+    "daily_notes": [
+      "DAILY PROGRESS NOTE",
+      "DAILY NOTE",
+      "PROGRESS NOTE"
+    ],
+    "consult_notes": [
+      "CONSULT",
+      "CONSULTATION"
+    ],
+    "discharge_summaries": [
+      "DISCHARGE SUMMARY",
+      "DISCHARGE NOTE"
+    ]
   },
   "tables": {
-    "comment": "Table mappings to be discovered through LSV schema exploration",
-    "discharge_table": null,
-    "tiu_notes_table": null,
-    "vitals_table": null,
-    "labs_table": null,
-    "ptf_diagnoses_table": null
+    "comment": "Confirmed table mappings for CDWWORK database",
+    "tiu_document": "TIU.TIUDocument",
+    "tiu_notes_table": "STIUNotes.TIUDocument_8925",
+    "tiu_note_text": "STIUNotes.TIUDocument_8925",
+    "tiu_note_text_simple": "STIUNotes.TIUDocument_8925_02",
+    "tiu_document_definition": "Dim.TIUDocumentDefinition",
+    "treating_specialty": "Dim.TreatingSpecialty",
+    "specialty_transfer": "Inpat.SpecialtyTransfer",
+    "patient_transfer": "Inpat.PatientTransfer",
+    "inpatient_501_transaction": "Inpat.Inpatient501Transaction",
+    "discharge_table": "Inpat.Inpatient",
+    "vitals_table": "Vital.VitalSign",
+    "labs_table": "Chem.LabChem",
+    "ptf_diagnoses_table": "Inpat.InpatientDischargeDiagnosis"
+  },
+  "query_strategy": {
+    "note_extraction": {
+      "text_source": "STIUNotes.TIUDocument_8925",
+      "text_column": "ReportText",
+      "metadata_source": "TIU.TIUDocument",
+      "join_key": "TIUDocumentSID",
+      "fields_needed": [
+        "signed_by",
+        "cosigned_by",
+        "signature_date",
+        "note_title"
+      ]
+    },
+    "specialty_extraction": {
+      "treating_specialty_source": "Dim.TreatingSpecialty",
+      "specialty_transfer_table": "Inpat.SpecialtyTransfer",
+      "transfer_datetime_field": "SpecialtyTransferDateTime",
+      "treating_specialty_sid_field": "TreatingSpecialtySID",
+      "admitting_specialty_strategy": "Use earliest SpecialtyTransferDateTime per InpatientSID",
+      "transfer_file_note": "Multiple transfers per admission - earliest is admitting specialty"
+    },
+    "note_titles": {
+      "source": "Dim.TIUDocumentDefinition.TIUDocumentDefinitionPrintName",
+      "type": "local_titles",
+      "examples": [
+        "ADMISSION NOTE",
+        "ADMISSION ASSESSMENT",
+        "OBSERVATION NURSING ADMISSION ASSESSMENT-"
+      ]
+    }
   }
 }
