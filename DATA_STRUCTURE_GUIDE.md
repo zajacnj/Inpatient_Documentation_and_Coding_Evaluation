@@ -1,6 +1,7 @@
 # Data Structure Guide for CDWWORK Database
 
 ## ✅ VERIFIED - Database Connection
+
 - **Server**: VHACDWRB03.VHA.MED.VA.GOV
 - **Database**: CDWWORK
 - **Authentication**: Windows Authentication (Trusted_Connection=yes)
@@ -11,17 +12,22 @@
 ## ✅ VERIFIED - Key Data Tables and Locations
 
 ### 1. TIU Note Text ✅ CONFIRMED
+
 **Table**: `[CDWWork].[STIUNotes].[TIUDocument_8925]`
+
 - **Column**: `ReportText` (varchar(max))
 - Contains the full text content of clinical notes
 - This is the primary source for note text extraction
 - **Join Key**: `TIUDocumentSID`
 
 **Alternative**: `[CDWWork].[STIUNotes].[TIUDocument_8925_02]`
+
 - Simplified table with only: TIUDocumentSID, Sta3n, TIUDocumentIEN, ReportText
 
 ### 2. TIU Document Metadata ✅ CONFIRMED
+
 **Table**: `[CDWWork].[TIU].[TIUDocument]`
+
 - Contains metadata about each note:
   - **Signed By**: Author who signed the note (AuthorDUZ/AuthorStaffSID)
   - **Cosigned By**: Attending or supervisor who cosigned (CosignerDUZ/CosignerStaffSID)
@@ -31,7 +37,9 @@
 - **Join Key**: `TIUDocumentSID`
 
 ### 3. TIU Document Definitions (Note Titles) ✅ CONFIRMED
+
 **Table**: `[CDWWork].[Dim].[TIUDocumentDefinition]`
+
 - **Field**: `TIUDocumentDefinitionPrintName`
 - Contains **local titles** for note types
 - **Examples found**:
@@ -43,14 +51,18 @@
 - **Join Key**: `TIUDocumentDefinitionSID`
 
 ### 4. Treating Specialties ✅ CONFIRMED
+
 **Table**: `[CDWWork].[Dim].[TreatingSpecialty]`
+
 - Contains specialty information
 - **Fields**: TreatingSpecialtySID, TreatingSpecialtyName
 - **Example**: 'GENERAL (ACUTE MEDICINE)'
 - **Join Key**: `TreatingSpecialtySID`
 
 ### 5. Specialty Transfers - Admitting Specialty Determination ✅ CONFIRMED
+
 **Primary Table**: `[CDWWork].[Inpat].[SpecialtyTransfer]`
+
 - Tracks specialty changes during hospitalization
 - **Key Fields**:
   - `SpecialtyTransferSID` (primary key)
@@ -62,6 +74,7 @@
 - **Strategy**: Sort by `SpecialtyTransferDateTime`, take earliest per `InpatientSID`
 
 **Alternative Tables** (also available):
+
 - `[CDWWork].[Inpat].[PatientTransfer]` - Physical location transfers
 - `[CDWWork].[Inpat].[Inpatient501Transaction]` - 501 transaction data
 - `[CDWWork].[Inpat].[Census501]` - Census 501 data
@@ -69,6 +82,7 @@
 ---
 
 ## Target Note Types
+
 We need to extract the following types of notes during hospitalization:
 
 1. **Admission Notes**
@@ -88,6 +102,7 @@ We need to extract the following types of notes during hospitalization:
 ## Query Strategy
 
 ### Note Extraction Query Pattern ✅ VERIFIED
+
 ```sql
 SELECT 
     doc.PatientSID,
@@ -118,6 +133,7 @@ ORDER BY
 ```
 
 ### Admitting Specialty Query Pattern ✅ VERIFIED
+
 ```sql
 -- Strategy: Find earliest specialty transfer per admission
 -- This represents the admitting treating specialty
@@ -145,7 +161,8 @@ WHERE
 
 ## Data Extraction Fields Needed
 
-### From Each Note:
+### From Each Note
+
 - Patient identifier (PatientSID)
 - Admission identifier (AdmissionSID)
 - Note date/time (ReferenceDateTime)
@@ -155,7 +172,8 @@ WHERE
 - Signature date (SignatureDateTime)
 - Full note text (ReportText)
 
-### From Admission Record:
+### From Admission Record
+
 - Patient identifier
 - Admission date/time
 - Discharge date/time
