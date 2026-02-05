@@ -1466,21 +1466,53 @@
             }
 
             try {
+                // Show loading message
+                const originalText = event.target.textContent;
+                event.target.textContent = `Generating ${format.toUpperCase()}...`;
+                event.target.disabled = true;
+
+                // Prepare analysis data for export
+                const analysisPayload = {
+                    summary: {
+                        notes_count: currentAnalysis.summary?.notes_count || 0,
+                        vitals_count: currentAnalysis.summary?.vitals_count || 0,
+                        labs_count: currentAnalysis.summary?.labs_count || 0,
+                        coded_diagnoses_count: currentAnalysis.coded_diagnoses?.length || 0
+                    },
+                    ai_analysis: {
+                        diagnoses: currentAnalysis.ai_analysis?.diagnoses || []
+                    },
+                    coded_diagnoses: currentAnalysis.coded_diagnoses || [],
+                    comparison: currentAnalysis.comparison || {},
+                    recommendations: currentAnalysis.recommendations || []
+                };
+
                 const response = await fetch('/api/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         patient_id: selectedPatient.PatientID,
                         analysis_id: currentAnalysis.analysis_id,
-                        format: format
+                        format: format,
+                        payload: analysisPayload
                     })
                 });
 
                 const data = await response.json();
-                alert(data.message || `Export to ${format.toUpperCase()} requested`);
+                
+                if (data.success) {
+                    alert(`✓ Successfully exported to ${format.toUpperCase()}!\nFile: ${data.filename || ''}`);
+                } else {
+                    alert(data.message || `Export to ${format.toUpperCase()} failed`);
+                }
+
+                // Restore button
+                event.target.textContent = originalText;
+                event.target.disabled = false;
             } catch (error) {
                 console.error('Export error:', error);
-                alert('Error exporting results');
+                alert('Error exporting results: ' + error.message);
+                event.target.disabled = false;
             }
         }
 

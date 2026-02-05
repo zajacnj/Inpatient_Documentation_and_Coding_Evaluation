@@ -15,6 +15,17 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 import time
 import pandas as pd
+from io import BytesIO
+
+# Export libraries
+from docx import Document
+from docx.shared import Pt, RGBColor, Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.units import inch
+from reportlab.lib import colors
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -1446,10 +1457,431 @@ async def start_review(request: ReviewRequest):
         fail_review(review_id, str(e))
 
 
+# ============================================================================
+# Export Helper Functions
+# ============================================================================
+
+def export_to_docx(patient_id: str, analysis_data: Dict[str, Any], file_path: Path) -> None:
+    """Generate a Word document with analysis results."""
+    doc = Document()
+    
+    # Add title
+    title = doc.add_heading('Inpatient Documentation & Coding Analysis Report', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Add date and patient info
+    info_table = doc.add_table(rows=2, cols=2)
+    info_table.autofit = False
+    info_table.allow_autofit = False
+    
+    info_table.rows[0].cells[0].text = "Patient ID:"
+    info_table.rows[0].cells[1].text = str(patient_id)
+    info_table.rows[1].cells[0].text = "Report Generated:"
+    info_table.rows[1].cells[1].text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # Summary Section
+    doc.add_heading('Hospitalization Summary', level=1)
+    summary = analysis_data.get('summary', {})
+    if summary:
+        doc.add_paragraph(f"Total Clinical Notes: {summary.get('notes_count', 0)}")
+        doc.add_paragraph(f"Total Vital Signs: {summary.get('vitals_count', 0)}")
+        doc.add_paragraph(f"Total Lab Results: {summary.get('labs_count', 0)}")
+        doc.add_paragraph(f"Coded Diagnoses: {summary.get('coded_diagnoses_count', 0)}")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # AI Diagnoses Section
+    doc.add_heading('AI-Extracted Diagnoses from Clinical Documentation', level=1)
+    ai_diagnoses = analysis_data.get('ai_analysis', {}).get('diagnoses', [])
+    if ai_diagnoses:
+        for i, dx in enumerate(ai_diagnoses, 1):
+            p = doc.add_paragraph(style='List Number')
+            if isinstance(dx, dict):
+                p.add_run(f"{dx.get('condition', 'Unknown')}: ").bold = True
+                p.add_run(f"{dx.get('evidence', '')}")
+            else:
+                p.text = str(dx)
+    else:
+        doc.add_paragraph("No diagnoses extracted from clinical documentation.")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # Coded Diagnoses Section
+    doc.add_heading('Patient Treatment File (PTF) Coded Diagnoses', level=1)
+    coded_dx = analysis_data.get('coded_diagnoses', [])
+    if coded_dx:
+        for i, dx in enumerate(coded_dx, 1):
+            p = doc.add_paragraph(style='List Number')
+            if isinstance(dx, dict):
+                code = dx.get('icd10_code') or dx.get('icd9_code', 'N/A')
+                desc = dx.get('description', 'No description')
+                p.add_run(f"[{code}] ").bold = True
+                p.add_run(desc)
+            else:
+                p.text = str(dx)
+    else:
+        doc.add_paragraph("No coded diagnoses found.")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # Comparison Section
+    doc.add_heading('Diagnosis Comparison & Analysis', level=1)
+    comparison = analysis_data.get('comparison', {})
+    if comparison:
+        # Documented and Coded
+        doc.add_heading('✓ Documented AND Coded (Compliant)', level=2)
+        documented_and_coded = comparison.get('documented_and_coded', [])
+        if documented_and_coded:
+            for dx in documented_and_coded:
+                p = doc.add_paragraph(style='List Bullet')
+                p.text = str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown')
+        else:
+            doc.add_paragraph("None identified.")
+        
+        doc.add_paragraph()
+        
+        # Documented but Not Coded
+        doc.add_heading('⚠ Documented NOT Coded (Potential Gap)', level=2)
+        documented_not_coded = comparison.get('documented_not_coded', [])
+        if documented_not_coded:
+            for dx in documented_not_coded:
+                p = doc.add_paragraph(style='List Bullet')
+                if isinstance(dx, dict):
+                    p.text = f"{dx.get('condition', 'Unknown')} - Recommend coding as {dx.get('icd10_code', 'N/A')}"
+                else:
+                    p.text = str(dx)
+        else:
+            doc.add_paragraph("None identified - documentation appears complete.")
+        
+        doc.add_paragraph()
+        
+        # Coded but Not Documented
+        doc.add_heading('⚠ Coded NOT Documented (Verify Clinical Support)', level=2)
+        coded_not_documented = comparison.get('coded_not_documented', [])
+        if coded_not_documented:
+            for dx in coded_not_documented:
+                p = doc.add_paragraph(style='List Bullet')
+                if isinstance(dx, dict):
+                    code = dx.get('icd10_code') or dx.get('icd9_code', 'N/A')
+                    desc = dx.get('description', 'No description')
+                    p.text = f"[{code}] {desc}"
+                else:
+                    p.text = str(dx)
+        else:
+            doc.add_paragraph("None identified - all coded diagnoses have supporting documentation.")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # Recommendations
+    doc.add_heading('Recommendations', level=1)
+    recommendations = analysis_data.get('recommendations', [])
+    if recommendations:
+        for i, rec in enumerate(recommendations, 1):
+            p = doc.add_paragraph(style='List Number')
+            p.text = str(rec) if not isinstance(rec, dict) else rec.get('recommendation', str(rec))
+    else:
+        doc.add_paragraph("No specific recommendations at this time.")
+    
+    doc.add_paragraph()  # Spacing
+    
+    # Footer
+    doc.add_paragraph()
+    footer_para = doc.add_paragraph("---")
+    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_note = doc.add_paragraph(
+        "This report is generated by AI analysis of clinical documentation and should be reviewed by qualified healthcare providers. "
+        "All findings are advisory only and do not constitute official diagnoses or medical opinions.",
+        style='Normal'
+    )
+    footer_note.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_note.runs[0]
+    footer_run.font.size = Pt(9)
+    footer_run.font.italic = True
+    
+    doc.save(file_path)
+
+
+def export_to_pdf(patient_id: str, analysis_data: Dict[str, Any], file_path: Path) -> None:
+    """Generate a PDF document with analysis results."""
+    pdf_file = SimpleDocTemplate(
+        str(file_path),
+        pagesize=letter,
+        rightMargin=0.75*inch,
+        leftMargin=0.75*inch,
+        topMargin=0.75*inch,
+        bottomMargin=0.75*inch
+    )
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#003366'),
+        spaceAfter=12,
+        alignment=1  # CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=13,
+        textColor=colors.HexColor('#004d99'),
+        spaceAfter=8,
+        spaceBefore=8
+    )
+    
+    # Title
+    elements.append(Paragraph('Inpatient Documentation & Coding Analysis Report', title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Patient info table
+    info_data = [
+        ['Patient ID:', str(patient_id)],
+        ['Report Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+    ]
+    info_table = Table(info_data, colWidths=[1.5*inch, 4*inch])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Summary Section
+    elements.append(Paragraph('Hospitalization Summary', heading_style))
+    summary = analysis_data.get('summary', {})
+    if summary:
+        summary_text = f"""
+        Total Clinical Notes: {summary.get('notes_count', 0)}<br/>
+        Total Vital Signs: {summary.get('vitals_count', 0)}<br/>
+        Total Lab Results: {summary.get('labs_count', 0)}<br/>
+        Coded Diagnoses: {summary.get('coded_diagnoses_count', 0)}
+        """
+        elements.append(Paragraph(summary_text, styles['Normal']))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # AI Diagnoses
+    elements.append(Paragraph('AI-Extracted Diagnoses from Clinical Documentation', heading_style))
+    ai_diagnoses = analysis_data.get('ai_analysis', {}).get('diagnoses', [])
+    if ai_diagnoses:
+        for i, dx in enumerate(ai_diagnoses[:10], 1):  # Limit to first 10 for readability
+            if isinstance(dx, dict):
+                text = f"{i}. <b>{dx.get('condition', 'Unknown')}:</b> {dx.get('evidence', '')}"
+            else:
+                text = f"{i}. {str(dx)}"
+            elements.append(Paragraph(text, styles['Normal']))
+        if len(ai_diagnoses) > 10:
+            elements.append(Paragraph(f"... and {len(ai_diagnoses) - 10} more diagnoses", styles['Italic']))
+    else:
+        elements.append(Paragraph("No diagnoses extracted from clinical documentation.", styles['Normal']))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Coded Diagnoses
+    elements.append(Paragraph('Patient Treatment File (PTF) Coded Diagnoses', heading_style))
+    coded_dx = analysis_data.get('coded_diagnoses', [])
+    if coded_dx:
+        for i, dx in enumerate(coded_dx[:10], 1):  # Limit to first 10
+            if isinstance(dx, dict):
+                code = dx.get('icd10_code') or dx.get('icd9_code', 'N/A')
+                desc = dx.get('description', 'No description')
+                text = f"{i}. <b>[{code}]</b> {desc}"
+            else:
+                text = f"{i}. {str(dx)}"
+            elements.append(Paragraph(text, styles['Normal']))
+        if len(coded_dx) > 10:
+            elements.append(Paragraph(f"... and {len(coded_dx) - 10} more diagnoses", styles['Italic']))
+    else:
+        elements.append(Paragraph("No coded diagnoses found.", styles['Normal']))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Comparison
+    elements.append(Paragraph('Diagnosis Comparison & Analysis', heading_style))
+    comparison = analysis_data.get('comparison', {})
+    if comparison:
+        # Documented and Coded
+        elements.append(Paragraph('✓ Documented AND Coded (Compliant)', ParagraphStyle('SubHeading', parent=styles['Normal'], fontSize=11, textColor=colors.green)))
+        documented_and_coded = comparison.get('documented_and_coded', [])
+        if documented_and_coded:
+            for dx in documented_and_coded[:5]:
+                text = str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown')
+                elements.append(Paragraph(f"• {text}", styles['Normal']))
+            if len(documented_and_coded) > 5:
+                elements.append(Paragraph(f"... and {len(documented_and_coded) - 5} more", styles['Italic']))
+        else:
+            elements.append(Paragraph("None identified.", styles['Normal']))
+        elements.append(Spacer(1, 0.1*inch))
+        
+        # Documented not coded
+        elements.append(Paragraph('⚠ Documented NOT Coded (Potential Gap)', ParagraphStyle('SubHeading', parent=styles['Normal'], fontSize=11, textColor=colors.orange)))
+        documented_not_coded = comparison.get('documented_not_coded', [])
+        if documented_not_coded:
+            for dx in documented_not_coded[:5]:
+                text = str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown')
+                elements.append(Paragraph(f"• {text}", styles['Normal']))
+            if len(documented_not_coded) > 5:
+                elements.append(Paragraph(f"... and {len(documented_not_coded) - 5} more", styles['Italic']))
+        else:
+            elements.append(Paragraph("None identified.", styles['Normal']))
+        elements.append(Spacer(1, 0.1*inch))
+        
+        # Coded not documented
+        elements.append(Paragraph('⚠ Coded NOT Documented (Verify Clinical Support)', ParagraphStyle('SubHeading', parent=styles['Normal'], fontSize=11, textColor=colors.red)))
+        coded_not_documented = comparison.get('coded_not_documented', [])
+        if coded_not_documented:
+            for dx in coded_not_documented[:5]:
+                text = str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown')
+                elements.append(Paragraph(f"• {text}", styles['Normal']))
+            if len(coded_not_documented) > 5:
+                elements.append(Paragraph(f"... and {len(coded_not_documented) - 5} more", styles['Italic']))
+        else:
+            elements.append(Paragraph("None identified.", styles['Normal']))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Recommendations
+    elements.append(Paragraph('Recommendations', heading_style))
+    recommendations = analysis_data.get('recommendations', [])
+    if recommendations:
+        for i, rec in enumerate(recommendations[:5], 1):
+            text = str(rec) if not isinstance(rec, dict) else rec.get('recommendation', str(rec))
+            elements.append(Paragraph(f"{i}. {text}", styles['Normal']))
+        if len(recommendations) > 5:
+            elements.append(Paragraph(f"... and {len(recommendations) - 5} more recommendations", styles['Italic']))
+    else:
+        elements.append(Paragraph("No specific recommendations at this time.", styles['Normal']))
+    
+    # Footer
+    elements.append(Spacer(1, 0.2*inch))
+    footer_text = (
+        "This report is generated by AI analysis of clinical documentation and should be reviewed by qualified healthcare providers. "
+        "All findings are advisory only and do not constitute official diagnoses or medical opinions."
+    )
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.grey,
+        alignment=1  # CENTER
+    )
+    elements.append(Paragraph(footer_text, footer_style))
+    
+    pdf_file.build(elements)
+
+
+def export_to_excel(patient_id: str, analysis_data: Dict[str, Any], file_path: Path) -> None:
+    """Generate an Excel workbook with analysis results."""
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        # Summary Sheet
+        summary = analysis_data.get('summary', {})
+        summary_data = {
+            'Metric': ['Total Clinical Notes', 'Total Vital Signs', 'Total Lab Results', 'Coded Diagnoses'],
+            'Count': [
+                summary.get('notes_count', 0),
+                summary.get('vitals_count', 0),
+                summary.get('labs_count', 0),
+                summary.get('coded_diagnoses_count', 0)
+            ]
+        }
+        pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
+        
+        # AI Diagnoses Sheet
+        ai_diagnoses = analysis_data.get('ai_analysis', {}).get('diagnoses', [])
+        ai_dx_data = []
+        for i, dx in enumerate(ai_diagnoses, 1):
+            if isinstance(dx, dict):
+                ai_dx_data.append({
+                    'Order': i,
+                    'Diagnosis': dx.get('condition', 'Unknown'),
+                    'Evidence': dx.get('evidence', '')[:100] if dx.get('evidence') else ''
+                })
+            else:
+                ai_dx_data.append({
+                    'Order': i,
+                    'Diagnosis': str(dx),
+                    'Evidence': ''
+                })
+        if ai_dx_data:
+            pd.DataFrame(ai_dx_data).to_excel(writer, sheet_name='AI Diagnoses', index=False)
+        
+        # Coded Diagnoses Sheet
+        coded_dx = analysis_data.get('coded_diagnoses', [])
+        coded_dx_data = []
+        for i, dx in enumerate(coded_dx, 1):
+            if isinstance(dx, dict):
+                coded_dx_data.append({
+                    'Order': i,
+                    'ICD Code': dx.get('icd10_code') or dx.get('icd9_code', 'N/A'),
+                    'Description': dx.get('description', ''),
+                    'Code Type': 'ICD-10' if dx.get('icd10_code') else 'ICD-9'
+                })
+            else:
+                coded_dx_data.append({
+                    'Order': i,
+                    'ICD Code': 'N/A',
+                    'Description': str(dx),
+                    'Code Type': ''
+                })
+        if coded_dx_data:
+            pd.DataFrame(coded_dx_data).to_excel(writer, sheet_name='PTF Diagnoses', index=False)
+        
+        # Comparison Sheet
+        comparison = analysis_data.get('comparison', {})
+        comparison_data = []
+        
+        documented_and_coded = comparison.get('documented_and_coded', [])
+        for dx in documented_and_coded:
+            comparison_data.append({
+                'Status': 'Compliant',
+                'Diagnosis': str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown'),
+                'Notes': 'Documented in clinical notes AND coded in PTF'
+            })
+        
+        documented_not_coded = comparison.get('documented_not_coded', [])
+        for dx in documented_not_coded:
+            comparison_data.append({
+                'Status': 'Gap',
+                'Diagnosis': str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown'),
+                'Notes': 'Documented but NOT coded - potential coding gap'
+            })
+        
+        coded_not_documented = comparison.get('coded_not_documented', [])
+        for dx in coded_not_documented:
+            comparison_data.append({
+                'Status': 'Verify',
+                'Diagnosis': str(dx) if not isinstance(dx, dict) else dx.get('condition', 'Unknown'),
+                'Notes': 'Coded in PTF but NOT documented - verify clinical support'
+            })
+        
+        if comparison_data:
+            pd.DataFrame(comparison_data).to_excel(writer, sheet_name='Comparison', index=False)
+        
+        # Recommendations Sheet
+        recommendations = analysis_data.get('recommendations', [])
+        if recommendations:
+            rec_data = []
+            for i, rec in enumerate(recommendations, 1):
+                rec_data.append({
+                    'Priority': i,
+                    'Recommendation': str(rec) if not isinstance(rec, dict) else rec.get('recommendation', str(rec))
+                })
+            pd.DataFrame(rec_data).to_excel(writer, sheet_name='Recommendations', index=False)
+
+
 @app.post("/api/export")
 async def export_results(request: ExportRequest):
     """
     Export analysis results to specified format (DOCX, XLSX, PDF).
+    Accepts full analysis object and generates professionally formatted documents.
     """
     username = get_username()
 
@@ -1458,27 +1890,41 @@ async def export_results(request: ExportRequest):
         export_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"analysis_{request.patient_id}_{timestamp}.{request.format}"
+        file_ext = request.format.lower()
+        if file_ext == "docx":
+            file_ext = "docx"
+        elif file_ext == "pdf":
+            file_ext = "pdf"
+        elif file_ext == "xlsx":
+            file_ext = "xlsx"
+        else:
+            file_ext = request.format.lower()
+        
+        filename = f"analysis_{request.patient_id}_{timestamp}.{file_ext}"
         file_path = export_dir / filename
 
-        if request.format.lower() == "xlsx":
-            if not request.payload:
-                raise HTTPException(status_code=400, detail="No payload provided for export")
+        # Use payload if provided, otherwise construct from default structure
+        analysis_data = request.payload if request.payload else {
+            "summary": {},
+            "ai_analysis": {},
+            "coded_diagnoses": [],
+            "comparison": {},
+            "recommendations": []
+        }
 
-            summary_rows = request.payload.get("summary", [])
-            comparison_rows = request.payload.get("comparison", [])
-            evidence_rows = request.payload.get("evidence", [])
-
-            with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-                if summary_rows:
-                    pd.DataFrame(summary_rows).to_excel(writer, sheet_name="Hospitalization Summary", index=False)
-                if comparison_rows:
-                    pd.DataFrame(comparison_rows).to_excel(writer, sheet_name="Dx Comparison", index=False)
-                if evidence_rows:
-                    pd.DataFrame(evidence_rows).to_excel(writer, sheet_name="Daily Evidence", index=False)
-
+        # Generate document based on format
+        if request.format.lower() == "docx":
+            export_to_docx(request.patient_id, analysis_data, file_path)
+        elif request.format.lower() == "pdf":
+            export_to_pdf(request.patient_id, analysis_data, file_path)
+        elif request.format.lower() == "xlsx":
+            export_to_excel(request.patient_id, analysis_data, file_path)
         else:
-            raise HTTPException(status_code=400, detail="Only XLSX export is implemented now")
+            raise HTTPException(status_code=400, detail=f"Unsupported export format: {request.format}. Use: docx, pdf, or xlsx")
+
+        # Verify file was created
+        if not file_path.exists():
+            raise Exception(f"Export file was not created: {file_path}")
 
         audit_logger.log_export(
             username=username,
@@ -1490,12 +1936,15 @@ async def export_results(request: ExportRequest):
 
         return {
             "success": True,
-            "message": f"Exported to {request.format.upper()}",
-            "file_path": str(file_path)
+            "message": f"Successfully exported to {request.format.upper()}",
+            "file_path": str(file_path),
+            "filename": filename
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Export error: {e}")
+        logger.error(f"Export error: {e}", exc_info=True)
         audit_logger.log_export(
             username=username,
             patient_id=request.patient_id,
