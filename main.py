@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 import getpass
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -93,6 +94,29 @@ db_connection: Optional[DatabaseConnection] = None
 
 # Progress tracking for long-running review operations
 review_progress: Dict[str, Dict[str, Any]] = {}
+
+# Error log file for bug tracking
+error_log_path = Path("logs") / "error_log.jsonl"
+
+def log_error_event(event_type: str, message: str, context: Optional[Dict[str, Any]] = None, exc: Optional[Exception] = None) -> None:
+    """Persist a structured error record for troubleshooting."""
+    try:
+        error_log_path.parent.mkdir(exist_ok=True)
+        payload = {
+            "timestamp": datetime.now().isoformat(),
+            "event_type": event_type,
+            "message": message,
+            "context": context or {},
+        }
+        if exc is not None:
+            payload.update({
+                "exception_type": type(exc).__name__,
+                "stack": traceback.format_exc()
+            })
+        with error_log_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
+    except Exception as log_exc:
+        logger.error(f"Failed to write error log: {log_exc}")
 
 def create_progress_tracker(review_id: str) -> None:
     """Initialize progress tracking for a review"""
@@ -353,6 +377,27 @@ async def health_check():
     }
 
 
+@app.get("/api/errors/recent")
+async def get_recent_errors(limit: int = 50):
+    """Return the most recent error records for troubleshooting."""
+    safe_limit = max(1, min(limit, 200))
+    if not error_log_path.exists():
+        return {"count": 0, "errors": []}
+
+    lines: List[str]
+    with error_log_path.open("r", encoding="utf-8") as handle:
+        lines = handle.readlines()
+
+    recent = []
+    for line in lines[-safe_limit:]:
+        try:
+            recent.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    return {"count": len(recent), "errors": recent}
+
+
 @app.get("/api/user/info")
 async def get_user_info():
     """Get current user information."""
@@ -395,6 +440,18 @@ async def get_review_progress(review_id: str):
         "elapsed_seconds": int(elapsed_seconds),
         "error": progress.get("error")
     }
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler to log unhandled exceptions."""
+    log_error_event(
+        event_type="UNHANDLED_EXCEPTION",
+        message=str(exc),
+        context={"method": request.method, "path": request.url.path},
+        exc=exc
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 @app.get("/api/review/result/{review_id}")
@@ -956,8 +1013,12 @@ def _run_review_task(
         tiu_doc_table = get_table_reference("TIU.TIUDocument")
         tiu_def_table = get_table_reference("Dim.TIUDocumentDefinition")
         note_text_table = get_table_reference("STIUNotes.TIUDocument_8925")
-        staff_table = get_table_reference("Staff.Staff")
+        staff_table = get_table_reference("Dim.Staff")
 
+
+        # Use COALESCE with multiple name column options for Dim.Staff
+        # Most common columns in CDW are StaffName or FullName
+        staff_name_expression = "COALESCE(s.[StaffName], s.[FullName], s.[PersonName], CAST(td.SignedByStaffSID AS VARCHAR(50)), 'Unknown Author')"
         # Build IN clause for provider classes
         provider_class_placeholders = ", ".join(["?" for _ in provider_classes_to_include])
 
@@ -970,20 +1031,19 @@ def _run_review_task(
             td.CosignedByStaffSID as CosignedByStaffSID,
             td.SignatureDateTime,
             txt.ReportText as NoteText,
-            s.ProviderClass as AuthorProviderClass,
-            COALESCE(s.StaffName, s.LastName, s.FirstName, s.PersonName, CONCAT(s.LastName, ', ', s.FirstName), 'Unknown Author') as AuthorName
+            COALESCE(s.[ProviderClass], 'UNKNOWN') as AuthorProviderClass,
+            {staff_name_expression} as AuthorName
         FROM {tiu_doc_table} td
         LEFT JOIN {tiu_def_table} ddef
             ON td.TIUDocumentDefinitionSID = ddef.TIUDocumentDefinitionSID
         INNER JOIN {note_text_table} txt
             ON td.TIUDocumentSID = txt.TIUDocumentSID
-        INNER JOIN {staff_table} s
+        LEFT JOIN {staff_table} s
             ON td.SignedByStaffSID = s.StaffSID
         WHERE td.PatientSID = TRY_CAST(? as int)
           AND td.ReferenceDateTime >= ?
           AND ( ? IS NULL OR td.ReferenceDateTime <= ? )
           AND txt.ReportText IS NOT NULL
-          AND s.ProviderClass IN ({provider_class_placeholders})
         ORDER BY td.ReferenceDateTime DESC
         """
 
@@ -992,7 +1052,6 @@ def _run_review_task(
             admission_start,
             admission_end,
             admission_end,
-            *provider_classes_to_include
         )
 
         notes_result = conn.execute_query(notes_query, params=notes_params)
@@ -1003,6 +1062,15 @@ def _run_review_task(
         
         if not notes_result.get("success"):
             logger.warning(f"Notes extraction query failed: {notes_result.get('error')}. Continuing with empty notes.")
+            log_error_event(
+                event_type="EXTRACT_CLINICAL_NOTES_FAILED",
+                message=notes_result.get("error") or "Unknown notes extraction error",
+                context={
+                    "review_id": review_id,
+                    "patient_id": request.patient_id,
+                    "admission_id": request.admission_id
+                }
+            )
             clinical_notes = []
         else:
             clinical_notes = notes_result.get("rows", []) or []

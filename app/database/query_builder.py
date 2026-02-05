@@ -225,9 +225,72 @@ class CDWWorkQueryBuilder:
         ORDER BY AdmitDateTime DESC
         """
         return query
+        STAFF_TABLE = "[CDWWork].[Dim].[Staff]"
+        PROVIDER_TABLE = "[CDWWork].[Dim].[Provider]"
     
     @staticmethod
-    def get_note_with_full_text(tiu_document_sid: int) -> str:
+        @staticmethod
+        def get_notes_with_authors(
+            patient_sid: int,
+            start_date: Optional[datetime] = None,
+            end_date: Optional[datetime] = None,
+            limit: int = 100
+        ) -> str:
+            """
+            Get notes with author and cosigner information resolved from staff tables.
+        
+            Attempts to join with staff tables to resolve author names.
+            Falls back to StaffSID if no name found.
+        
+            Args:
+                patient_sid: Patient identifier
+                start_date: Optional start date filter
+                end_date: Optional start date filter
+                limit: Maximum number of notes to return
+        
+            Returns:
+                SQL query string with author details
+            """
+            query = f"""
+            SELECT TOP {limit}
+                doc.TIUDocumentSID,
+                doc.PatientSID,
+                doc.ReferenceDateTime AS NoteDateTime,
+                doc.SignatureDateTime,
+                doc.CosignatureDateTime,
+                doc.SignedByStaffSID,
+                COALESCE(author.StaffName, CAST(doc.SignedByStaffSID AS VARCHAR(50)), 'Unknown') AS AuthorName,
+                author.StaffName AS AuthorStaffName,
+                doc.CosignedByStaffSID,
+                COALESCE(cosigner.StaffName, CAST(doc.CosignedByStaffSID AS VARCHAR(50)), '') AS CosignerName,
+                cosigner.StaffName AS CosignerStaffName,
+                def.TIUDocumentDefinitionPrintName AS NoteTitle,
+                txt.ReportText AS NoteText
+            FROM {CDWWorkQueryBuilder.NOTE_METADATA_TABLE} doc
+            INNER JOIN {CDWWorkQueryBuilder.NOTE_TEXT_TABLE} txt
+                ON doc.TIUDocumentSID = txt.TIUDocumentSID
+            INNER JOIN {CDWWorkQueryBuilder.NOTE_DEFINITION_TABLE} def
+                ON doc.TIUDocumentDefinitionSID = def.TIUDocumentDefinitionSID
+            LEFT JOIN {CDWWorkQueryBuilder.STAFF_TABLE} author
+                ON doc.SignedByStaffSID = author.StaffSID
+            LEFT JOIN {CDWWorkQueryBuilder.STAFF_TABLE} cosigner
+                ON doc.CosignedByStaffSID = cosigner.StaffSID
+            WHERE doc.PatientSID = {patient_sid}
+                AND txt.ReportText IS NOT NULL
+            """
+        
+            if start_date:
+                query += f"\n            AND doc.ReferenceDateTime >= '{start_date.strftime('%Y-%m-%d')}'"
+        
+            if end_date:
+                query += f"\n            AND doc.ReferenceDateTime <= '{end_date.strftime('%Y-%m-%d')}'"
+        
+            query += "\n        ORDER BY doc.ReferenceDateTime DESC"
+        
+            return query
+    
+        @staticmethod
+        def get_note_with_full_text(tiu_document_sid: int) -> str:
         """
         Get a single note with full text.
         

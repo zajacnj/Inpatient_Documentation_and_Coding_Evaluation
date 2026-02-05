@@ -946,7 +946,7 @@ async def start_review(request: ReviewRequest):
         tiu_doc_table = get_table_reference("TIU.TIUDocument")
         tiu_def_table = get_table_reference("Dim.TIUDocumentDefinition")
         note_text_table = get_table_reference("STIUNotes.TIUDocument_8925")
-        staff_table = get_table_reference("Staff.Staff")
+        staff_table = get_table_reference("Dim.Staff")
 
         # Build IN clause for provider classes
         provider_class_placeholders = ", ".join(["?" for _ in provider_classes_to_include])
@@ -960,19 +960,18 @@ async def start_review(request: ReviewRequest):
             td.CosignedByStaffSID as CosignedByStaffSID,
             td.SignatureDateTime,
             txt.ReportText as NoteText,
-            s.ProviderClass as AuthorProviderClass
+            COALESCE(s.[ProviderClass], 'UNKNOWN') as AuthorProviderClass
         FROM {tiu_doc_table} td
         LEFT JOIN {tiu_def_table} ddef
             ON td.TIUDocumentDefinitionSID = ddef.TIUDocumentDefinitionSID
         INNER JOIN {note_text_table} txt
             ON td.TIUDocumentSID = txt.TIUDocumentSID
-        INNER JOIN {staff_table} s
+        LEFT JOIN {staff_table} s
             ON td.SignedByStaffSID = s.StaffSID
         WHERE td.PatientSID = TRY_CAST(? as int)
           AND td.ReferenceDateTime >= ?
           AND ( ? IS NULL OR td.ReferenceDateTime <= ? )
           AND txt.ReportText IS NOT NULL
-          AND s.ProviderClass IN ({provider_class_placeholders})
         ORDER BY td.ReferenceDateTime DESC
         """
 
@@ -981,7 +980,6 @@ async def start_review(request: ReviewRequest):
             admission_start,
             admission_end,
             admission_end,
-            *provider_classes_to_include
         )
 
         notes_result = conn.execute_query(notes_query, params=notes_params)
