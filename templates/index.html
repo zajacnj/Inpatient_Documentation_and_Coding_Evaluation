@@ -1016,10 +1016,12 @@
                     });
 
                     const data = await response.json();
+                    console.log('Review start response:', data);
                     
                     // If we got a review_id, start polling for progress
                     if (data.review_id || data.analysis_id) {
                         const reviewId = data.review_id || data.analysis_id;
+                        console.log('Polling review ID:', reviewId);
                         
                         // Show progress bar
                         document.getElementById('progress-bar-container').style.display = 'block';
@@ -1027,6 +1029,13 @@
                         progressInterval = setInterval(async () => {
                             try {
                                 const progressResp = await fetch(`/api/review/progress/${reviewId}`);
+                                if (progressResp.status === 404) {
+                                    clearInterval(progressInterval);
+                                    throw new Error('Review not found. Please restart the review.');
+                                }
+                                if (!progressResp.ok) {
+                                    throw new Error(`Progress check failed: ${progressResp.status}`);
+                                }
                                 const progress = await progressResp.json();
                                 
                                 // Update progress bar
@@ -1048,6 +1057,9 @@
                                     const mins = Math.floor(progress.elapsed_seconds / 60);
                                     const secs = progress.elapsed_seconds % 60;
                                     progressElapsed.textContent = `Elapsed: ${mins}m ${secs}s`;
+                                    // DEBUG: Log progress responses to see what the backend is returning
+                                    console.log(`[Progress ${reviewId}] Status: ${progress.status}, %: ${progress.percentage}, Step: ${progress.current_step}`);
+        
                                 }
                                 
                                 // Stop polling if complete or error
@@ -1057,6 +1069,12 @@
                                     if (progress.status === 'error') {
                                         throw new Error(progress.error || 'Review failed');
                                     }
+
+                                    // Fetch final results once complete
+                                    const resultResp = await fetch(`/api/review/result/${reviewId}`);
+                                    const resultData = await resultResp.json();
+                                    currentAnalysis = resultData;
+                                    renderResults(resultData);
                                 }
                             } catch (err) {
                                 console.error('Progress polling error:', err);
@@ -1064,17 +1082,7 @@
                             }
                         }, 2000); // Poll every 2 seconds
                     }
-                    
-                    currentAnalysis = data;
 
-                    // Stop progress polling if it's still running
-                    if (progressInterval) {
-                        clearInterval(progressInterval);
-                    }
-
-                    // Render results for this patient
-                    renderResults(data);
-                    
                     // If more patients to process, wait a moment before continuing
                     if (i < window.selectedPatients.length - 1) {
                         await new Promise(resolve => setTimeout(resolve, 1000));

@@ -24,6 +24,29 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger(__name__)
 
 
+class DatetimeEncoder(json.JSONEncoder):
+    """JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+def _serialize_for_json(obj: Any) -> Any:
+    """
+    Recursively convert datetime objects to ISO format strings.
+    Handles dicts, lists, and nested structures.
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_for_json(item) for item in obj]
+    else:
+        return obj
+
+
 class AuditLogger:
     """Comprehensive audit logger with full context capture."""
 
@@ -287,8 +310,10 @@ class AuditLogger:
         }
 
         try:
+            # Serialize datetime objects before JSON encoding
+            serialized_entry = _serialize_for_json(log_entry)
             with open(self.analysis_log_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(log_entry) + '\n')
+                f.write(json.dumps(serialized_entry) + '\n')
         except Exception as e:
             logger.error(f"Failed to write analysis details: {e}")
 

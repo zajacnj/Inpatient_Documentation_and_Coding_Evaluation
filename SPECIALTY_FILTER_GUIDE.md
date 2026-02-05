@@ -4,21 +4,22 @@
 
 ### How to Use the Specialty Filter
 
-1. **Select Date Range**
-   - Choose "Start Date" and "End Date" for discharge date range
+1. **Select Date Range**: Choose "Start Date" and "End Date" for discharge date range.
 
-2. **Select Specialties** (Optional)
-   - ☑ Medical Observation - Acute care/observation patients
-   - ☑ Medical - General medical patients
-   - ☑ Surgical - Surgical patients
-   - ☑ Psychiatric - Psychiatry patients
-   - ☑ Rehabilitation - Rehabilitation patients
-   - ☑ Hospice/Long-term Care - Hospice and long-term care patients
-   
-   **Leave unchecked** to show all specialties for the date range
+1. **Select Specialties** (Optional).
 
-3. **Click "Search Discharged Patients"**
-   - Results will show only patients matching your criteria
+Specialty options:
+
+- ☑ Medical Observation - Acute care/observation patients
+- ☑ Medical - General medical patients
+- ☑ Surgical - Surgical patients
+- ☑ Psychiatric - Psychiatry patients
+- ☑ Rehabilitation - Rehabilitation patients
+- ☑ Hospice/Long-term Care - Hospice and long-term care patients
+
+**Leave unchecked** to show all specialties for the date range.
+
+1. **Click "Search Discharged Patients"**: Results will show only patients matching your criteria.
 
 ### Examples
 

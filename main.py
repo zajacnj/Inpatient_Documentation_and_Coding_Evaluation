@@ -5,6 +5,7 @@ Main FastAPI Application
 AI-powered evaluation of inpatient clinical documentation against coded diagnoses.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -34,11 +35,11 @@ env_file = project_root / 'Key.env'
 if env_file.exists():
     load_dotenv(env_file)
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from pydantic import BaseModel
 
 # Local imports
@@ -113,6 +114,7 @@ def update_progress(review_id: str, percentage: int, current_step: str, status: 
             "status": status,
             "last_update": datetime.now().isoformat()
         })
+        logger.info(f"Progress update: {review_id} - {percentage}% - {current_step}")
 
 def mark_step_complete(review_id: str, step_name: str) -> None:
     """Mark a step as completed"""
@@ -325,6 +327,12 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Avoid 404s for browser favicon requests."""
+    return Response(status_code=204)
+
+
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request):
     """Serve the query logs page."""
@@ -387,6 +395,23 @@ async def get_review_progress(review_id: str):
         "elapsed_seconds": int(elapsed_seconds),
         "error": progress.get("error")
     }
+
+
+@app.get("/api/review/result/{review_id}")
+async def get_review_result(review_id: str):
+    """Get completed review results once processing is done."""
+    if review_id not in review_progress:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    progress = review_progress[review_id]
+    if progress.get("status") != "complete":
+        raise HTTPException(status_code=409, detail="Review not complete")
+
+    result_data = progress.get("result_data")
+    if not result_data:
+        raise HTTPException(status_code=404, detail="Review results not available")
+
+    return result_data
 
 
 @app.post("/api/diagnostics/notes")
@@ -786,31 +811,16 @@ async def get_discharged_patients(request: DateRangeRequest):
         }
 
 
-@app.post("/api/review/start")
-async def start_review(request: ReviewRequest):
+def _run_review_task(
+    review_id: str,
+    request: ReviewRequest,
+    username: str,
+    start_time: float
+):
     """
-    Start the documentation review process for a patient.
-
-    This endpoint:
-    1. Extracts all relevant clinical notes
-    2. Extracts vital signs
-    3. Extracts laboratory values
-    4. Extracts coded diagnoses from PTF
-    5. Runs AI analysis on the documentation
-    6. Compares AI diagnoses against coded diagnoses
-    
-    Returns review_id immediately; use /api/review/progress/{review_id} to track progress.
+    Background task for review processing.
+    Runs asynchronously so progress polling can continue.
     """
-    username = get_username()
-    start_time = time.time()
-    
-    # Generate unique review ID
-    import uuid
-    review_id = str(uuid.uuid4())[:8]
-    
-    # Initialize progress tracking
-    create_progress_tracker(review_id)
-
     try:
         # Validate request parameters
         if not request or not hasattr(request, 'patient_id') or not hasattr(request, 'admission_id'):
@@ -882,7 +892,7 @@ async def start_review(request: ReviewRequest):
         # Log analysis start
         analysis_id = audit_logger.log_analysis_start(
             username=username,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             analysis_type="FULL_HOSPITALIZATION_REVIEW",
             document_count=0  # Will update after extraction
         )
@@ -960,7 +970,8 @@ async def start_review(request: ReviewRequest):
             td.CosignedByStaffSID as CosignedByStaffSID,
             td.SignatureDateTime,
             txt.ReportText as NoteText,
-            s.ProviderClass as AuthorProviderClass
+            s.ProviderClass as AuthorProviderClass,
+            COALESCE(s.StaffName, s.LastName, s.FirstName, s.PersonName, CONCAT(s.LastName, ', ', s.FirstName), 'Unknown Author') as AuthorName
         FROM {tiu_doc_table} td
         LEFT JOIN {tiu_def_table} ddef
             ON td.TIUDocumentDefinitionSID = ddef.TIUDocumentDefinitionSID
@@ -1041,7 +1052,7 @@ async def start_review(request: ReviewRequest):
         
         query_logger.log_evaluation_step(
             evaluation_id=analysis_id,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             username=username,
             step_name="Extract Clinical Notes",
             step_type="DATA_EXTRACTION",
@@ -1115,7 +1126,7 @@ async def start_review(request: ReviewRequest):
 
         query_logger.log_evaluation_step(
             evaluation_id=analysis_id,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             username=username,
             step_name="Extract Vitals",
             step_type="DATA_EXTRACTION",
@@ -1191,7 +1202,7 @@ async def start_review(request: ReviewRequest):
 
         query_logger.log_evaluation_step(
             evaluation_id=analysis_id,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             username=username,
             step_name="Extract Labs",
             step_type="DATA_EXTRACTION",
@@ -1277,7 +1288,7 @@ async def start_review(request: ReviewRequest):
 
         query_logger.log_evaluation_step(
             evaluation_id=analysis_id,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             username=username,
             step_name="Extract PTF Diagnoses",
             step_type="DATA_EXTRACTION",
@@ -1291,7 +1302,7 @@ async def start_review(request: ReviewRequest):
         # Log document extraction
         audit_logger.log_document_extraction(
             username=username,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             document_types=["TIU Notes", "Vitals", "Labs", "PTF Diagnoses"],
             document_count=len(clinical_notes) + len(vitals) + len(labs),
             success=True
@@ -1385,7 +1396,7 @@ async def start_review(request: ReviewRequest):
         # Log analysis completion
         audit_logger.log_analysis_complete(
             username=username,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             analysis_id=analysis_id,
             diagnoses_found=len(ai_diagnoses),
             processing_time_seconds=processing_time,
@@ -1395,7 +1406,7 @@ async def start_review(request: ReviewRequest):
         # Log detailed analysis
         audit_logger.log_analysis_details(
             analysis_id=analysis_id,
-            patient_id=normalized_patient_id,
+            patient_id=request.patient_id,
             username=username,
             notes_analyzed=clinical_notes,
             ai_diagnoses=ai_diagnoses,
@@ -1409,7 +1420,7 @@ async def start_review(request: ReviewRequest):
             comp = comparison["comparison"]
             audit_logger.log_comparison_result(
                 username=username,
-                patient_id=normalized_patient_id,
+                patient_id=request.patient_id,
                 documented_diagnoses=len(ai_diagnoses),
                 coded_diagnoses=len(coded_diagnoses),
                 matches=len(comp.get("matches", [])),
@@ -1447,14 +1458,56 @@ async def start_review(request: ReviewRequest):
         
         complete_review(review_id, review_result)
 
-        return review_result
-
     except HTTPException:
         fail_review(review_id, str(review_id) if isinstance(review_id, str) else "Unknown error")
-        raise
     except Exception as e:
         logger.error(f"Error in review process: {e}", exc_info=True)
         fail_review(review_id, str(e))
+
+
+@app.post("/api/review/start")
+async def start_review(request: ReviewRequest, background_tasks: BackgroundTasks):
+    """
+    Start the documentation review process for a patient.
+    
+    Returns review_id immediately; the review runs in a background task.
+    Use /api/review/progress/{review_id} to track progress.
+    """
+    username = get_username()
+    start_time = time.time()
+    
+    # Generate unique review ID
+    import uuid
+    review_id = str(uuid.uuid4())[:8]
+    
+    # Initialize progress tracking
+    create_progress_tracker(review_id)
+    logger.info(
+        f"Review start: review_id={review_id}, patient_id={request.patient_id}, admission_id={request.admission_id}"
+    )
+
+    try:
+        # Validate request parameters
+        if not request or not hasattr(request, 'patient_id') or not hasattr(request, 'admission_id'):
+            fail_review(review_id, "Invalid request parameters: missing patient_id or admission_id")
+            raise HTTPException(status_code=400, detail="Invalid request parameters: missing patient_id or admission_id")
+        
+        # Spawn background task immediately
+        background_tasks.add_task(_run_review_task, review_id, request, username, start_time)
+        
+        # Return review_id immediately so client can start polling
+        return {
+            "success": True,
+            "review_id": review_id,
+            "message": "Review started - use /api/review/progress/{review_id} to track"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting review: {e}", exc_info=True)
+        fail_review(review_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to start review")
 
 
 # ============================================================================
@@ -1472,6 +1525,7 @@ def export_to_docx(patient_id: str, analysis_data: Dict[str, Any], file_path: Pa
     # Add date and patient info
     info_table = doc.add_table(rows=2, cols=2)
     info_table.autofit = False
+    info_table.allow_autofit = False
     
     info_table.rows[0].cells[0].text = "Patient ID:"
     info_table.rows[0].cells[1].text = str(patient_id)
@@ -1599,7 +1653,7 @@ def export_to_docx(patient_id: str, analysis_data: Dict[str, Any], file_path: Pa
     footer_run.font.size = Pt(9)
     footer_run.font.italic = True
     
-    doc.save(str(file_path))
+    doc.save(file_path)
 
 
 def export_to_pdf(patient_id: str, analysis_data: Dict[str, Any], file_path: Path) -> None:

@@ -46,6 +46,7 @@ This application helps evaluate whether the best diagnoses have been documented 
 Before using the application, you need to identify and configure:
 
 ### Database Tables (in config/database_config.json)
+
 - Discharge table: Table containing inpatient admissions and discharges
 - TIU notes table: Table containing clinical documentation
 - Vitals table: Table containing vital signs
@@ -53,6 +54,7 @@ Before using the application, you need to identify and configure:
 - PTF diagnoses table: Table containing coded ICD-10 diagnoses
 
 ### Note Types
+
 - Admission note titles/IENs
 - Progress note titles/IENs
 - Attending note titles/IENs
@@ -61,7 +63,7 @@ Before using the application, you need to identify and configure:
 ## Usage
 
 1. Start: `python app.py`
-2. Open browser to http://127.0.0.1:8000
+2. Open browser to <http://127.0.0.1:8000>
 3. Select date range for discharged patients
 4. Select a patient
 5. Click "Review Hospitalization"

@@ -3,6 +3,7 @@
 ## Three Major Accomplishments
 
 ### 1. 🗑️ Repository Cleanup
+
 **14 test/diagnostic scripts have been removed** - keeping only production code and essential documentation.
 
 Previously cluttered repository is now clean and organized.
@@ -12,7 +13,9 @@ Previously cluttered repository is now clean and organized.
 ### 2. 📚 Comprehensive Documentation Added
 
 #### HELP.md - User Guide
+
 How to use the application:
+
 - Getting Started with step-by-step instructions
 - Understanding each tab in Results (Summary, AI Diagnoses, PTF Diagnoses, Comparison)
 - How to Export to Word, PDF, or Excel
@@ -25,7 +28,9 @@ How to use the application:
 ---
 
 #### TECHNICAL.md - Developer Guide
+
 Complete technical documentation:
+
 - System Architecture overview
 - Database schema and tables
 - Core components (data extraction, AI analysis, progress tracking, logging, export)
@@ -39,7 +44,9 @@ Complete technical documentation:
 ---
 
 #### ABOUT.md - Application Overview
+
 High-level description:
+
 - Application purpose and value proposition
 - Key features (6 major capabilities)
 - System architecture diagram
@@ -58,7 +65,9 @@ High-level description:
 All export buttons now **fully functional** with comprehensive content:
 
 #### Word Export (.docx)
+
 Creates professionally formatted documents with:
+
 - Patient information header
 - Hospitalization summary (notes, vitals, labs count)
 - AI-extracted diagnoses from clinical documentation
@@ -75,7 +84,9 @@ Creates professionally formatted documents with:
 ---
 
 #### PDF Export (.pdf)
+
 Creates printable professional documents with:
+
 - Formatted title and styling
 - Patient information table
 - All analysis sections (same as Word)
@@ -91,7 +102,9 @@ Creates printable professional documents with:
 ---
 
 #### Excel Export (.xlsx)
+
 Creates multi-sheet workbook with:
+
 - **Summary** sheet - Overview counts
 - **AI Diagnoses** sheet - What AI found in clinical notes
 - **PTF Diagnoses** sheet - Official coded diagnoses with ICD codes
@@ -105,31 +118,31 @@ Creates multi-sheet workbook with:
 ## How to Use the New Export Features
 
 1. **Run a patient review** (as normal)
-2. **Click one of the export buttons**:
-   - "Export to Word" (DOCX)
-   - "Export to PDF"
-   - "Export to Excel" (XLSX)
-3. **Button will show "Generating DOCX/PDF/XLSX..."** during processing
-4. **Success message appears** with the filename
-5. **File is saved** in `/data/exports/` folder with timestamp
+2. **Click one of the export buttons**: Export to Word (DOCX), Export to PDF, or Export to Excel (XLSX).
+3. **Button will show "Generating DOCX/PDF/XLSX..."** during processing.
+4. **Success message appears** with the filename.
+5. **File is saved** in `/data/exports/` folder with timestamp.
 
 ---
 
 ## What Changed Under the Hood
 
 ### Backend (app.py)
+
 - Added 3 new export functions (DOCX, PDF, Excel generation)
 - Updated /api/export endpoint to support all formats
 - Enhanced error handling and validation
 - Added proper logging for audit trail
 
 ### Frontend (templates/index.html)
+
 - Updated exportResults() to send complete analysis data
 - Added loading feedback during export
 - Improved success/error messages
 - Shows filename in response
 
 ### Libraries
+
 - Added python-docx for Word document generation
 - Added reportlab for PDF generation
 - openpyxl for Excel (was already available)
@@ -181,6 +194,7 @@ To verify everything works:
 ## Summary
 
 **Session 9 delivered:**
+
 - ✅ Clean codebase (14 test files removed)
 - ✅ Complete documentation (3 guide files)
 - ✅ Working export buttons (DOCX, PDF, Excel)

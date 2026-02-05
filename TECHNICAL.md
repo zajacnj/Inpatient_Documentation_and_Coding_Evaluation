@@ -3,6 +3,7 @@
 ## System Architecture
 
 ### Technology Stack
+
 - **Backend**: FastAPI (Python web framework)
 - **Database**: SQL Server (VHACDWRB03.VHA.MED.VA.GOV / CDWWORK)
 - **AI**: Azure OpenAI API (GPT-4) for clinical documentation analysis
@@ -12,32 +13,38 @@
 ### Core Components
 
 #### 1. Database Connection (`app/database/connection.py`)
+
 - Manages SQL Server connections with Windows Authentication
 - Implements connection pooling and retry logic
 - Query timeout: 300 seconds for large document extractions
 - Executes parameterized queries with type safety
 
 #### 2. Data Extraction (`app.py` - Review Endpoint)
+
 Extracts four main data categories:
 
 **Clinical Notes** (`TIU.TIUDocument`)
+
 - Filters by provider class (clinicians, not nursing staff)
 - ~29 provider classes included (PHYSICIAN, RESIDENT, FELLOW, SURGEON, etc.)
 - ~10-15 notes per hospitalization expected
 - Query time: 15-18 minutes (slow due to large table size)
 
 **Vital Signs** (`Vital.VitalSign`)
+
 - Temperature, blood pressure, heart rate, respiratory rate, O2 saturation
 - ~100+ measurements per hospitalization
 - Query time: 2-5 seconds
 
 **Laboratory Values** (`Chem.LabChem`)
+
 - Chemistry, hematology, microbiology results
 - Includes units and reference ranges
 - ~150-200 values per hospitalization
 - Query time: 20-30 seconds
 
 **Coded Diagnoses** (`Inpat.InpatientDischargeDiagnosis`)
+
 - ICD-10 and ICD-9 codes from Patient Treatment File (PTF)
 - Joins to dimension tables for diagnosis descriptions:
   - `Dim.ICD10DiagnosisVersion` - ICD-10 diagnosis text
@@ -48,6 +55,7 @@ Extracts four main data categories:
 - Query time: 5 seconds
 
 #### 3. AI Analysis (`app/ai/va_gpt_client.py`)
+
 - Analyzes clinical notes using Azure OpenAI GPT-4
 - Three main operations:
   1. **analyze_clinical_note()** - Single note analysis
@@ -57,18 +65,21 @@ Extracts four main data categories:
 - Query time: 2-3 minutes for typical admission
 
 #### 4. Progress Tracking
+
 - Real-time progress updates via `/api/review/progress/{review_id}` endpoint
 - 9 progress checkpoints (5% → 100%)
 - Global in-memory tracking dictionary
 - Frontend polls every 2-3 seconds for updates
 
 #### 5. Logging & Audit (`app/logging/`)
+
 - **AuditLogger** - Compliance logging (who, what, when)
 - **QueryLogger** - Database query performance tracking
 - Session-based logging with unique session IDs
 - Sanitizes PII before logging query results
 
 #### 6. Export Functionality
+
 - Converts analysis results to three formats:
   - **Excel**: Tabular data with multiple sheets
   - **Word**: Formatted report with summaries
@@ -77,6 +88,7 @@ Extracts four main data categories:
 ## Key Tables & Schemas
 
 ### TIU Schema (Clinical Notes)
+
 ```sql
 TIU.TIUDocument
 ├── SignedByStaffSID (links to Staff.Staff for provider info)
@@ -86,6 +98,7 @@ TIU.TIUDocument
 ```
 
 ### Inpat Schema (Admissions)
+
 ```sql
 Inpat.Inpatient
 ├── InpatientSID (unique admission identifier)
@@ -103,6 +116,7 @@ Inpat.InpatientDischargeDiagnosis
 ```
 
 ### Vital Schema
+
 ```sql
 Vital.VitalSign
 ├── PatientSID
@@ -113,6 +127,7 @@ Vital.VitalSign
 ```
 
 ### Chem Schema (Labs)
+
 ```sql
 Chem.LabChem
 ├── PatientSID
@@ -123,6 +138,7 @@ Chem.LabChem
 ```
 
 ### Dimension Tables
+
 ```sql
 Dim.ICD10 / Dim.ICD9
 └── ICD10Code / ICD9Code (e.g., "C34.11", "250.00")
@@ -141,7 +157,8 @@ Staff.Staff
 ## API Endpoints
 
 ### Review Endpoints
-```
+
+```text
 POST /api/review/start
   ├─ Accepts: patient_id, admission_id
   ├─ Returns: review_id, analysis results
@@ -153,7 +170,8 @@ GET /api/review/progress/{review_id}
 ```
 
 ### Export Endpoints
-```
+
+```text
 POST /api/export
   ├─ Accepts: patient_id, format (xlsx/docx/pdf), payload
   ├─ Returns: file_path, success message
@@ -161,7 +179,8 @@ POST /api/export
 ```
 
 ### Utility Endpoints
-```
+
+```text
 GET /api/specialties          - List available treating specialties
 POST /api/patients/discharged - Search discharged patients by date range
 GET /api/diagnostics          - System health check
@@ -170,7 +189,7 @@ GET /api/diagnostics          - System health check
 ## Performance Characteristics
 
 | Operation | Duration | Notes |
-|-----------|----------|-------|
+| --------- | -------- | ----- |
 | Notes Extraction | 15-18 min | Bottleneck; large table size |
 | Vitals Extraction | 2-5 sec | Very fast; indexed table |
 | Labs Extraction | 20-30 sec | Moderate; many lab results |
@@ -184,23 +203,27 @@ GET /api/diagnostics          - System health check
 ## Deployment Notes
 
 ### Required Environment Variables
+
 - `AZURE_OPENAI_KEY` - Azure OpenAI API key
 - `AZURE_OPENAI_ENDPOINT` - Azure OpenAI endpoint URL
 - `AZURE_OPENAI_DEPLOYMENT` - GPT-4 deployment name (default: gpt-4o)
 
 ### Database Requirements
+
 - Windows Authentication (must run on VA network)
 - Access to VHACDWRB03 Clinical Data Warehouse
 - Minimum query timeout: 300 seconds
 - VPN required if external to VA network
 
 ### Hardware Recommendations
+
 - **CPU**: 4+ cores recommended
 - **RAM**: 8GB minimum, 16GB+ recommended
 - **Disk**: 100GB+ for database operations and exports
 - **Network**: Stable VA network connection
 
 ### Scaling Considerations
+
 - Currently single-instance, blocking API design
 - Future: Implement async background processing with Celery/RQ
 - Future: Add caching for frequently accessed patients
