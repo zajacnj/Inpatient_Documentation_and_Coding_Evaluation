@@ -39,6 +39,30 @@ class QueryLogger:
         execution_time_ms: float = 0
     ):
         """Log a database query with full details."""
+
+        def _sanitize_record(record: Dict[str, Any]) -> Dict[str, Any]:
+            """Remove obvious PII/PHI fields and replace text with lengths."""
+            if not isinstance(record, dict):
+                return {}
+
+            filtered = {}
+            for key, val in record.items():
+                key_lower = key.lower()
+                if any(token in key_lower for token in ["name", "ssn", "scrssn"]):
+                    continue
+                if "text" in key_lower or "note" in key_lower or "report" in key_lower:
+                    try:
+                        filtered[f"{key}_chars"] = len(val) if val is not None else 0
+                    except Exception:
+                        filtered[f"{key}_chars"] = 0
+                    continue
+                filtered[key] = val
+            return filtered
+
+        sanitized_results = None
+        if results and isinstance(results, list):
+            sanitized_results = [_sanitize_record(r) for r in results[:3]]
+
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "query_type": query_type,
@@ -49,7 +73,7 @@ class QueryLogger:
             "row_count": row_count,
             "execution_time_ms": round(execution_time_ms, 2),
             "error": error,
-            "results_sample": results[:3] if results and isinstance(results, list) else None
+            "results_sample": sanitized_results
         }
 
         # Write to JSONL file

@@ -251,19 +251,29 @@ class AuditLogger:
             comparison: Comparison results
             total_time_seconds: Total processing time
         """
+
+        def _strip_note(note: Dict[str, Any]) -> Dict[str, Any]:
+            """Remove PHI/PII fields while keeping minimal context."""
+            if not isinstance(note, dict):
+                return {}
+            cleaned = {}
+            for key, val in note.items():
+                lower = key.lower()
+                if any(tok in lower for tok in ["name", "ssn"]):
+                    continue
+                if "text" in lower or "note" in lower or "report" in lower:
+                    cleaned[f"{key}_chars"] = len(val) if isinstance(val, (str, list)) and val else 0
+                    continue
+                cleaned[key] = val
+            return cleaned
+
         log_entry = {
             'analysis_id': analysis_id,
             'timestamp': datetime.now().isoformat(),
             'session_id': self.session_id,
             'patient_id': patient_id,
             'username': username,
-            'notes_analyzed': [
-                {
-                    'type': n.get('type'),
-                    'date': n.get('date'),
-                    'author': n.get('author')
-                } for n in notes_analyzed
-            ],
+            'notes_analyzed': [_strip_note(n) for n in (notes_analyzed or [])],
             'ai_diagnoses_count': len(ai_diagnoses),
             'ai_diagnoses': ai_diagnoses,
             'coded_diagnoses_count': len(coded_diagnoses),

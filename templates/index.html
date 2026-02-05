@@ -487,6 +487,13 @@
         <p>AI-powered analysis of clinical documentation against coded diagnoses</p>
     </div>
 
+    <div style="display: flex; gap: 10px; align-items: center; margin: 12px 24px 0 24px;">
+        <button class="btn btn-danger" onclick="shutdownServer()" style="padding: 8px 14px;">
+            Quit & Shutdown Server
+        </button>
+        <span style="font-size: 12px; color: #666;">Saves nothing; simply stops the app and closes the backend.</span>
+    </div>
+
     <div class="container">
         <div class="user-info">
             <div>
@@ -983,12 +990,21 @@
                 document.getElementById('tab-summary').innerHTML = `
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Analyzing documentation for ${patient.PatientName}...</p>
+                        <p id="progress-message">Analyzing documentation for ${patient.PatientName}...</p>
                         ${progressMsg}
-                        <p style="font-size: 0.85rem; color: #666;">This may take a few minutes for large admissions.</p>
+                        <div id="progress-bar-container" style="width: 100%; max-width: 500px; margin: 20px auto; background: #e0e0e0; border-radius: 10px; height: 24px; display: none;">
+                            <div id="progress-bar-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0066cc, #004d99); border-radius: 10px; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.85rem;">
+                                <span id="progress-percentage">0%</span>
+                            </div>
+                        </div>
+                        <p id="progress-step" style="font-size: 0.85rem; color: #666; margin-top: 10px;">Initializing review...</p>
+                        <p id="progress-elapsed" style="font-size: 0.75rem; color: #999; margin-top: 5px;">Elapsed: 0s</p>
                     </div>
                 `;
 
+                // Start progress polling
+                let progressInterval = null;
+                
                 try {
                     const response = await fetch('/api/review/start', {
                         method: 'POST',
@@ -1000,7 +1016,61 @@
                     });
 
                     const data = await response.json();
+                    
+                    // If we got a review_id, start polling for progress
+                    if (data.review_id || data.analysis_id) {
+                        const reviewId = data.review_id || data.analysis_id;
+                        
+                        // Show progress bar
+                        document.getElementById('progress-bar-container').style.display = 'block';
+                        
+                        progressInterval = setInterval(async () => {
+                            try {
+                                const progressResp = await fetch(`/api/review/progress/${reviewId}`);
+                                const progress = await progressResp.json();
+                                
+                                // Update progress bar
+                                const progressBar = document.getElementById('progress-bar-fill');
+                                const progressPct = document.getElementById('progress-percentage');
+                                const progressStep = document.getElementById('progress-step');
+                                const progressElapsed = document.getElementById('progress-elapsed');
+                                
+                                if (progressBar && progress.percentage !== undefined) {
+                                    progressBar.style.width = progress.percentage + '%';
+                                    if (progressPct) progressPct.textContent = progress.percentage + '%';
+                                }
+                                
+                                if (progressStep && progress.current_step) {
+                                    progressStep.textContent = progress.current_step;
+                                }
+                                
+                                if (progressElapsed && progress.elapsed_seconds !== undefined) {
+                                    const mins = Math.floor(progress.elapsed_seconds / 60);
+                                    const secs = progress.elapsed_seconds % 60;
+                                    progressElapsed.textContent = `Elapsed: ${mins}m ${secs}s`;
+                                }
+                                
+                                // Stop polling if complete or error
+                                if (progress.status === 'complete' || progress.status === 'error') {
+                                    clearInterval(progressInterval);
+                                    
+                                    if (progress.status === 'error') {
+                                        throw new Error(progress.error || 'Review failed');
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Progress polling error:', err);
+                                // Don't clear interval on minor errors, keep trying
+                            }
+                        }, 2000); // Poll every 2 seconds
+                    }
+                    
                     currentAnalysis = data;
+
+                    // Stop progress polling if it's still running
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
 
                     // Render results for this patient
                     renderResults(data);
@@ -1011,6 +1081,11 @@
                     }
 
                 } catch (error) {
+                    // Stop progress polling on error
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                    }
+                    
                     console.error('Error starting review:', error);
                     document.getElementById('tab-summary').innerHTML = `
                         <div class="alert alert-error">
@@ -1406,6 +1481,25 @@
             } catch (error) {
                 console.error('Export error:', error);
                 alert('Error exporting results');
+            }
+        }
+
+        async function shutdownServer() {
+            const confirmQuit = confirm('Quit and shut down the server now?');
+            if (!confirmQuit) return;
+            try {
+                const res = await fetch('/api/shutdown', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (res.ok) {
+                    alert('Server is shutting down. You can close this window.');
+                } else {
+                    alert('Shutdown request failed.');
+                }
+            } catch (e) {
+                console.error('Shutdown error', e);
+                alert('Shutdown request failed.');
             }
         }
 

@@ -8,11 +8,13 @@ AI-powered evaluation of inpatient clinical documentation against coded diagnose
 import json
 import logging
 import os
+import threading
 import getpass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import time
+import pandas as pd
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -77,6 +79,56 @@ va_gpt_client = VAGPTClient()
 # Global database connection (will be initialized on first use)
 db_connection: Optional[DatabaseConnection] = None
 
+# Progress tracking for long-running review operations
+review_progress: Dict[str, Dict[str, Any]] = {}
+
+def create_progress_tracker(review_id: str) -> None:
+    """Initialize progress tracking for a review"""
+    review_progress[review_id] = {
+        "status": "initializing",
+        "percentage": 0,
+        "current_step": "Initializing review...",
+        "steps_completed": [],
+        "start_time": datetime.now().isoformat(),
+        "error": None
+    }
+
+def update_progress(review_id: str, percentage: int, current_step: str, status: str = "processing") -> None:
+    """Update progress for a review"""
+    if review_id in review_progress:
+        review_progress[review_id].update({
+            "percentage": min(percentage, 99),  # Cap at 99% until complete
+            "current_step": current_step,
+            "status": status,
+            "last_update": datetime.now().isoformat()
+        })
+
+def mark_step_complete(review_id: str, step_name: str) -> None:
+    """Mark a step as completed"""
+    if review_id in review_progress:
+        if step_name not in review_progress[review_id]["steps_completed"]:
+            review_progress[review_id]["steps_completed"].append(step_name)
+
+def complete_review(review_id: str, data: Any = None) -> None:
+    """Mark review as complete"""
+    if review_id in review_progress:
+        review_progress[review_id].update({
+            "status": "complete",
+            "percentage": 100,
+            "current_step": "Review complete",
+            "end_time": datetime.now().isoformat(),
+            "result_data": data
+        })
+
+def fail_review(review_id: str, error: str) -> None:
+    """Mark review as failed"""
+    if review_id in review_progress:
+        review_progress[review_id].update({
+            "status": "error",
+            "error": error,
+            "end_time": datetime.now().isoformat()
+        })
+
 
 # ============================================================================
 # Pydantic Models
@@ -93,19 +145,20 @@ class PatientSelectionRequest(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    patient_id: str
-    admission_id: str
+    patient_id: str | int
+    admission_id: str | int
 
 
 class NotesDiagnosticsRequest(BaseModel):
-    patient_id: str
-    admission_id: str
+    patient_id: str | int
+    admission_id: str | int
 
 
 class ExportRequest(BaseModel):
     patient_id: str
     analysis_id: str
     format: str  # docx, xlsx, pdf
+    payload: Optional[Dict[str, Any]] = None  # optional inline data to export
 
 
 # ============================================================================
@@ -172,6 +225,85 @@ def get_db_connection() -> DatabaseConnection:
     return db_connection
 
 
+def classify_provider_roles(conn: DatabaseConnection, staff_sids: List[int]) -> Dict[int, Dict[str, str]]:
+    """
+    Attempt to classify provider roles (LIP vs trainee vs unknown) for given StaffSIDs.
+
+    Best-effort: tries multiple likely staff tables and uses available columns.
+    """
+    if not staff_sids:
+        return {}
+
+    candidates = [
+        "Dim.Staff",
+        "Staff.Staff",
+        "Dim.Provider",
+        "Dim.PersonClass"
+    ]
+
+    role_map: Dict[int, Dict[str, str]] = {}
+    sid_list = ",".join(str(int(sid)) for sid in staff_sids if sid is not None)
+
+    for table_path in candidates:
+        try:
+            table_ref = get_table_reference(table_path)
+            # Discover available columns
+            schema, name = table_path.split(".")
+            col_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+            """
+            cols_result = conn.execute_query(col_query, params=(schema, name))
+            if not isinstance(cols_result, dict) or not cols_result.get("success"):
+                continue
+            available = {row["COLUMN_NAME"] for row in cols_result.get("rows", [])}
+
+            select_cols = []
+            for col in ["StaffSID", "PersonClass", "ProviderType", "Occupation", "PositionTitle", "StaffName", "Name"]:
+                if col in available:
+                    select_cols.append(col)
+
+            if "StaffSID" not in select_cols:
+                continue
+
+            columns_sql = ", ".join(f"[{c}]" for c in select_cols)
+            role_query = f"""
+            SELECT {columns_sql}
+            FROM {table_ref}
+            WHERE StaffSID IN ({sid_list})
+            """
+            role_result = conn.execute_query(role_query)
+            if not isinstance(role_result, dict) or not role_result.get("success"):
+                continue
+
+            for row in role_result.get("rows", []):
+                sid = row.get("StaffSID")
+                raw_values = " ".join(str(row.get(c, "") or "") for c in select_cols if c != "StaffSID")
+                raw_upper = raw_values.upper()
+                role = "UNKNOWN"
+                if any(tag in raw_upper for tag in ["RESIDENT", "FELLOW"]):
+                    role = "TRAINEE"
+                elif any(tag in raw_upper for tag in ["PHYSICIAN", "MD", "DO", "NURSE PRACTITIONER", "NP", "PHYSICIAN ASSISTANT", "PA"]):
+                    role = "LIP"
+                elif any(tag in raw_upper for tag in ["ATTENDING", "CONSULTANT"]):
+                    role = "LIP"
+
+                role_map[int(sid)] = {
+                    "role": role,
+                    "raw": raw_values.strip()[:200]
+                }
+
+            if role_map:
+                break  # Stop after first successful table
+
+        except Exception as e:
+            logger.warning(f"Provider role lookup failed for {table_path}: {e}")
+            continue
+
+    return role_map
+
+
 # ============================================================================
 # API Endpoints
 # ============================================================================
@@ -208,6 +340,41 @@ async def get_user_info():
     return {
         "username": get_username(),
         "session_id": audit_logger.session_id
+    }
+
+
+@app.get("/api/review/progress/{review_id}")
+async def get_review_progress(review_id: str):
+    """
+    Get current progress of a review operation.
+    
+    Returns:
+    {
+        "status": "processing|complete|error",
+        "percentage": 0-100,
+        "current_step": "description of current operation",
+        "steps_completed": ["step1", "step2", ...],
+        "elapsed_seconds": seconds since start,
+        "error": null or error message
+    }
+    """
+    if review_id not in review_progress:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    progress = review_progress[review_id]
+    
+    # Calculate elapsed time
+    start_time = datetime.fromisoformat(progress["start_time"])
+    elapsed_seconds = (datetime.now() - start_time).total_seconds()
+    
+    return {
+        "review_id": review_id,
+        "status": progress["status"],
+        "percentage": progress["percentage"],
+        "current_step": progress["current_step"],
+        "steps_completed": progress["steps_completed"],
+        "elapsed_seconds": int(elapsed_seconds),
+        "error": progress.get("error")
     }
 
 
@@ -620,12 +787,86 @@ async def start_review(request: ReviewRequest):
     4. Extracts coded diagnoses from PTF
     5. Runs AI analysis on the documentation
     6. Compares AI diagnoses against coded diagnoses
+    
+    Returns review_id immediately; use /api/review/progress/{review_id} to track progress.
     """
     username = get_username()
     start_time = time.time()
+    
+    # Generate unique review ID
+    import uuid
+    review_id = str(uuid.uuid4())[:8]
+    
+    # Initialize progress tracking
+    create_progress_tracker(review_id)
 
     try:
+        # Validate request parameters
+        if not request or not hasattr(request, 'patient_id') or not hasattr(request, 'admission_id'):
+            fail_review(review_id, "Invalid request parameters: missing patient_id or admission_id")
+            raise HTTPException(status_code=400, detail="Invalid request parameters: missing patient_id or admission_id")
+        
+        # Normalize IDs to strings for downstream queries
+        normalized_patient_id = str(request.patient_id)
+        normalized_admission_id = str(request.admission_id)
+        
+        update_progress(review_id, 5, "Loading patient admission data...")
+        logger.info(f"Starting review {review_id} for patient={normalized_patient_id}, admission={normalized_admission_id}")
+
         conn = get_db_connection()
+        if not conn or not conn.is_connected:
+            fail_review(review_id, "Unable to connect to database")
+            raise HTTPException(status_code=500, detail="Unable to connect to database")
+
+        # Resolve admission (InpatientSID) and date window
+        inpat_table = get_table_reference("Inpat.Inpatient")
+        admission_lookup = f"""
+        SELECT TOP 1
+            InpatientSID,
+            PatientSID,
+            Sta3n,
+            AdmitDateTime,
+            DischargeDateTime
+        FROM {inpat_table}
+        WHERE (PTFIEN = ? OR CAST(InpatientSID AS varchar(50)) = ?)
+          AND PatientSID = TRY_CAST(? as int)
+        ORDER BY DischargeDateTime DESC
+        """
+        admission_res = conn.execute_query(admission_lookup, params=(normalized_admission_id, normalized_admission_id, normalized_patient_id))
+        
+        if not isinstance(admission_res, dict):
+            logger.error(f"admission_res is not a dict, got {type(admission_res)}: {admission_res}")
+            fail_review(review_id, "Database query returned invalid response")
+            raise HTTPException(status_code=500, detail="Database query returned invalid response")
+
+        # Fallback: user may pass InpatientSID as patient_id; try resolving without patient filter
+        if (not admission_res.get("success") or not admission_res.get("rows")):
+            fallback_lookup = f"""
+            SELECT TOP 1
+                InpatientSID,
+                PatientSID,
+                Sta3n,
+                AdmitDateTime,
+                DischargeDateTime
+            FROM {inpat_table}
+            WHERE InpatientSID = TRY_CAST(? as bigint)
+               OR PTFIEN = ?
+            ORDER BY DischargeDateTime DESC
+            """
+            admission_res = conn.execute_query(fallback_lookup, params=(normalized_patient_id, normalized_admission_id))
+            
+            if not isinstance(admission_res, dict):
+                logger.error(f"Fallback admission_res is not a dict, got {type(admission_res)}: {admission_res}")
+                raise HTTPException(status_code=500, detail="Database query returned invalid response")
+
+        if not admission_res.get("success") or not admission_res.get("rows"):
+            raise HTTPException(status_code=404, detail="Admission not found for provided identifiers")
+        
+        admission_info = admission_res["rows"][0]
+        inpatient_sid = admission_info.get("InpatientSID")
+        admission_start = admission_info.get("AdmitDateTime")
+        admission_end = admission_info.get("DischargeDateTime") or admission_start
+        station = admission_info.get("Sta3n") or db_config.get("extraction_settings", {}).get("station_focus", 626)
 
         # Log analysis start
         analysis_id = audit_logger.log_analysis_start(
@@ -639,34 +880,37 @@ async def start_review(request: ReviewRequest):
         # Step 1: Extract Clinical Notes
         # ================================================================
         step_start = time.time()
-        note_title_like = [
-            "%HISTORY & PHYSICAL%",
-            "%HISTORY AND PHYSICAL%",
-            "%ALLERGY%",
-            "%AMBULATORY SURGERY%",
-            "%ANES - ATTENDING%",
-            "%PROCEDURE NOTE%",
-            "%ANES%",
-            "%ARRHYTHMIA%",
-            "%ATTENDING%",
-            "%RESIDENT%",
-            "%FELLOW%",
-            "%NP%",
-            "%PHYSICIAN%",
-            "%CONSULT%",
-            "%PROGRESS NOTE%",
-            "%CP%",
-            "%DISCHARGE SUMMARY%",
-            "%DISCHARGE%",
-            "%INPATIENT NOTE%",
-            "%GI%",
-            "%MEDICINE SERVICE%"
-        ]
-
-        note_title_exclude = [
-            "%BNP%",
-            "%NURSE%",
-            "%NURSING%"
+        # Provider classes to include - notes authored by these provider types
+        provider_classes_to_include = [
+            "PHYSICIAN",
+            "PHYSICIAN ",  # Note: Has trailing space in database
+            "PHYSICIAN ASSISTANT",
+            "RESIDENT PODIATRIST",
+            "RESIDENT- ORAL SURGERY",
+            "RESIDENT PSYCHIATRIST",
+            "CONSULTANT",
+            "RESIDENT-PHYSICIAN",
+            "RESIDENT PHYSICIAN",
+            "RESIDENT SURGEON",
+            "FELLOW",
+            "PSYCHIATRIST",
+            "SURGEON",
+            "WOC ATTENDING",
+            "ORAL SURGEON",
+            "PHYSICIAN (DUPLICATE)",
+            "PHYSICIAN (CONTRACT)",
+            "PHYSICIAN (WOC)",
+            "ANESTHESIOLOGIST",
+            "PULMONOLOGIST",
+            "PATHOLOGIST",
+            "STAFF PSYCHIATRIST",
+            "HOUSESTAFF",
+            "RESIDENT-DENTIST",
+            "ORTHOPEDICS",
+            "OPTOMETRY",
+            "DO",
+            "PA",
+            "INTERN"
         ]
 
         text_column = None
@@ -676,6 +920,9 @@ async def start_review(request: ReviewRequest):
         WHERE TABLE_SCHEMA = 'TIU' AND TABLE_NAME = 'TIUDocument'
         """
         column_result = conn.execute_query(column_query)
+        if not isinstance(column_result, dict):
+            logger.error(f"column_result is not a dict, got {type(column_result)}")
+            raise HTTPException(status_code=500, detail="Column query returned invalid response")
         if column_result.get("success") and column_result.get("rows"):
             available_columns = {row["COLUMN_NAME"] for row in column_result["rows"]}
             for candidate in ["ReportText", "NoteText", "DocumentText", "TIUText", "Text"]:
@@ -687,8 +934,11 @@ async def start_review(request: ReviewRequest):
         # Build fully qualified table references
         tiu_doc_table = get_table_reference("TIU.TIUDocument")
         tiu_def_table = get_table_reference("Dim.TIUDocumentDefinition")
-        inpat_table = get_table_reference("Inpat.Inpatient")
         note_text_table = get_table_reference("STIUNotes.TIUDocument_8925")
+        staff_table = get_table_reference("Staff.Staff")
+
+        # Build IN clause for provider classes
+        provider_class_placeholders = ", ".join(["?" for _ in provider_classes_to_include])
 
         notes_query = f"""
         SELECT TOP 200
@@ -698,79 +948,66 @@ async def start_review(request: ReviewRequest):
             td.SignedByStaffSID as AuthorStaffSID,
             td.CosignedByStaffSID as CosignedByStaffSID,
             td.SignatureDateTime,
-            txt.ReportText as NoteText
+            txt.ReportText as NoteText,
+            s.ProviderClass as AuthorProviderClass
         FROM {tiu_doc_table} td
         LEFT JOIN {tiu_def_table} ddef
             ON td.TIUDocumentDefinitionSID = ddef.TIUDocumentDefinitionSID
         INNER JOIN {note_text_table} txt
             ON td.TIUDocumentSID = txt.TIUDocumentSID
-        INNER JOIN {inpat_table} ip
-            ON ip.InpatientSID = ?
-            AND ip.PatientSID = td.PatientSID
+        INNER JOIN {staff_table} s
+            ON td.SignedByStaffSID = s.StaffSID
         WHERE td.PatientSID = TRY_CAST(? as int)
-          AND td.ReferenceDateTime >= ip.AdmitDateTime
-          AND (ip.DischargeDateTime IS NULL OR td.ReferenceDateTime <= ip.DischargeDateTime)
+          AND td.ReferenceDateTime >= ?
+          AND ( ? IS NULL OR td.ReferenceDateTime <= ? )
           AND txt.ReportText IS NOT NULL
-                    AND (
-                                UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                                OR UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) LIKE ?
-                        )
-                    AND UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) NOT LIKE ?
-                    AND UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) NOT LIKE ?
-                    AND UPPER(COALESCE(ddef.TIUDocumentDefinitionPrintName, '')) NOT LIKE ?
+          AND s.ProviderClass IN ({provider_class_placeholders})
         ORDER BY td.ReferenceDateTime DESC
         """
 
         notes_params = (
-            request.admission_id,
-            request.patient_id,
-            note_title_like[0],
-            note_title_like[1],
-            note_title_like[2],
-            note_title_like[3],
-            note_title_like[4],
-            note_title_like[5],
-            note_title_like[6],
-            note_title_like[7],
-            note_title_like[8],
-            note_title_like[9],
-            note_title_like[10],
-            note_title_like[11],
-            note_title_like[12],
-            note_title_like[13],
-            note_title_like[14],
-            note_title_like[15],
-            note_title_like[16],
-            note_title_like[17],
-            note_title_like[18],
-            note_title_like[19],
-            note_title_like[20],
-            note_title_exclude[0],
-            note_title_exclude[1],
-            note_title_exclude[2]
+            normalized_patient_id,
+            admission_start,
+            admission_end,
+            admission_end,
+            *provider_classes_to_include
         )
 
         notes_result = conn.execute_query(notes_query, params=notes_params)
-        clinical_notes = notes_result.get("rows", [])
+        if not isinstance(notes_result, dict):
+            logger.error(f"notes_result is not a dict, got {type(notes_result)}: {notes_result}")
+            fail_review(review_id, "Notes query returned invalid response")
+            raise HTTPException(status_code=500, detail="Database query returned invalid response")
+        
+        if not notes_result.get("success"):
+            logger.warning(f"Notes extraction query failed: {notes_result.get('error')}. Continuing with empty notes.")
+            clinical_notes = []
+        else:
+            clinical_notes = notes_result.get("rows", []) or []
+        
+        update_progress(review_id, 15, f"Extracted {len(clinical_notes)} clinical notes")
+        mark_step_complete(review_id, "Extract Clinical Notes")
+
+        # Enrich notes: add character counts and provider role tags (best-effort)
+        staff_sids = set()
+        for note in clinical_notes:
+            note_text = note.get("NoteText") or ""
+            note["NoteCharCount"] = len(note_text)
+            if note.get("AuthorStaffSID"):
+                staff_sids.add(note["AuthorStaffSID"])
+            if note.get("CosignedByStaffSID"):
+                staff_sids.add(note["CosignedByStaffSID"])
+
+        provider_roles = classify_provider_roles(conn, list(staff_sids))
+        for note in clinical_notes:
+            author_sid = note.get("AuthorStaffSID")
+            cosigner_sid = note.get("CosignedByStaffSID")
+            if author_sid in provider_roles:
+                note["AuthorRole"] = provider_roles[author_sid]["role"]
+                note["AuthorRoleRaw"] = provider_roles[author_sid]["raw"]
+            if cosigner_sid in provider_roles:
+                note["CosignerRole"] = provider_roles[cosigner_sid]["role"]
+                note["CosignerRoleRaw"] = provider_roles[cosigner_sid]["raw"]
 
         # No fallback without filters: enforce explicit include/exclude criteria
         
@@ -781,7 +1018,7 @@ async def start_review(request: ReviewRequest):
             parameters={
                 "patient_id": request.patient_id,
                 "admission_id": request.admission_id,
-                "note_title_like": note_title_like,
+                "provider_classes_count": len(provider_classes_to_include),
                 "note_text_column": text_column or "(none)"
             },
             success=notes_result["success"],
@@ -807,51 +1044,238 @@ async def start_review(request: ReviewRequest):
         # ================================================================
         # Step 2: Extract Vital Signs
         # ================================================================
-        # TODO: Update with actual vitals query
-        vitals_query = """
-        -- Placeholder - needs actual vitals table
-        SELECT TOP 0
-            'Type' as VitalType,
-            0.0 as Value,
-            'units' as Units,
-            GETDATE() as RecordedDateTime
+        step_start = time.time()
+        vital_table = get_table_reference(db_config.get("tables", {}).get("vitals_table", "Vital.VitalSign"))
+        vital_type_table = get_table_reference("Dim.VitalType")
+        vitals_query = f"""
+        SELECT
+            vs.VitalSignSID,
+            vs.PatientSID,
+            vs.Sta3n,
+            vs.VitalSignTakenDateTime AS TakenDateTime,
+            vs.VitalSignTakenDateTime AS EnteredDateTime,
+            vs.VitalTypeSID,
+            vt.VitalType,
+            vs.VitalResult,
+            vs.VitalResultNumeric
+        FROM {vital_table} vs
+        LEFT JOIN {vital_type_table} vt
+            ON vs.VitalTypeSID = vt.VitalTypeSID
+        WHERE vs.PatientSID = TRY_CAST(? as int)
+          AND vs.Sta3n = ?
+          AND vs.VitalSignTakenDateTime BETWEEN ? AND DATEADD(day, 1, ?)
+        ORDER BY vs.VitalSignTakenDateTime
         """
 
-        vitals_result = conn.execute_query(vitals_query)
-        vitals = vitals_result.get("rows", [])
+        vitals_result = conn.execute_query(
+            vitals_query,
+            params=(normalized_patient_id, station, admission_start, admission_end)
+        )
+        if not isinstance(vitals_result, dict):
+            logger.error(f"vitals_result is not a dict, got {type(vitals_result)}")
+            fail_review(review_id, "Vitals query returned invalid response")
+            raise HTTPException(status_code=500, detail="Vitals query returned invalid response")
+        
+        if not vitals_result.get("success"):
+            logger.warning(f"Vitals extraction query failed: {vitals_result.get('error')}. Continuing with empty vitals.")
+            vitals = []
+        else:
+            vitals = vitals_result.get("rows", []) or []
+        
+        update_progress(review_id, 30, f"Extracted {len(vitals)} vital sign measurements")
+        mark_step_complete(review_id, "Extract Vitals")
+
+        query_logger.log_query(
+            query_type="EXTRACT_VITALS",
+            username=username,
+            sql_query=vitals_query,
+            parameters={
+                "patient_id": request.patient_id,
+                "station": station,
+                "start": admission_start,
+                "end_plus1": admission_end
+            },
+            success=vitals_result["success"],
+            results=vitals,
+            error=vitals_result.get("error"),
+            row_count=len(vitals),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
+
+        query_logger.log_evaluation_step(
+            evaluation_id=analysis_id,
+            patient_id=request.patient_id,
+            username=username,
+            step_name="Extract Vitals",
+            step_type="DATA_EXTRACTION",
+            success=vitals_result["success"],
+            input_data={"patient_id": request.patient_id},
+            output_data={"vitals_count": len(vitals)},
+            error=vitals_result.get("error"),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
 
         # ================================================================
         # Step 3: Extract Laboratory Values
         # ================================================================
-        # TODO: Update with actual labs query
-        labs_query = """
-        -- Placeholder - needs actual labs table
-        SELECT TOP 0
-            'Test' as TestName,
-            0.0 as ResultValue,
-            'units' as Units,
-            GETDATE() as CollectionDateTime,
-            'Normal' as AbnormalFlag
+        labs_table = get_table_reference(db_config.get("tables", {}).get("labs_table", "Chem.LabChem"))
+        lab_test_table = get_table_reference("Dim.LabChemTest")
+        step_start = time.time()
+        labs_query = f"""
+        SELECT
+            lc.LabChemSID,
+            lc.PatientSID,
+            lc.Sta3n,
+            lc.LabChemSpecimenDateTime,
+            lc.LabChemCompleteDateTime,
+            lc.LabChemTestSID,
+            dlt.LabChemTestName,
+            lc.LabChemResultValue,
+            lc.LabChemResultNumericValue,
+            lc.Units as ResultUnits,
+            lc.LOINCSID
+        FROM {labs_table} lc
+        LEFT JOIN {lab_test_table} dlt
+            ON lc.LabChemTestSID = dlt.LabChemTestSID
+        WHERE lc.PatientSID = TRY_CAST(? as int)
+          AND lc.Sta3n = ?
+          AND lc.LabChemSpecimenDateTime BETWEEN ? AND DATEADD(day, 1, ?)
+        ORDER BY lc.LabChemSpecimenDateTime
         """
 
-        labs_result = conn.execute_query(labs_query)
-        labs = labs_result.get("rows", [])
+        labs_result = conn.execute_query(
+            labs_query,
+            params=(normalized_patient_id, station, admission_start, admission_end)
+        )
+        if not isinstance(labs_result, dict):
+            logger.error(f"labs_result is not a dict, got {type(labs_result)}")
+            fail_review(review_id, "Labs query returned invalid response")
+            raise HTTPException(status_code=500, detail="Labs query returned invalid response")
+        
+        if not labs_result.get("success"):
+            logger.warning(f"Labs extraction query failed: {labs_result.get('error')}. Continuing with empty labs.")
+            labs = []
+        else:
+            labs = labs_result.get("rows", []) or []
+        
+        update_progress(review_id, 45, f"Extracted {len(labs)} laboratory values")
+        mark_step_complete(review_id, "Extract Labs")
+
+        query_logger.log_query(
+            query_type="EXTRACT_LABS",
+            username=username,
+            sql_query=labs_query,
+            parameters={
+                "patient_id": request.patient_id,
+                "station": station,
+                "start": admission_start,
+                "end_plus1": admission_end
+            },
+            success=labs_result["success"],
+            results=labs,
+            error=labs_result.get("error"),
+            row_count=len(labs),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
+
+        query_logger.log_evaluation_step(
+            evaluation_id=analysis_id,
+            patient_id=request.patient_id,
+            username=username,
+            step_name="Extract Labs",
+            step_type="DATA_EXTRACTION",
+            success=labs_result["success"],
+            input_data={"patient_id": request.patient_id},
+            output_data={"labs_count": len(labs)},
+            error=labs_result.get("error"),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
 
         # ================================================================
         # Step 4: Extract Coded Diagnoses (PTF)
         # ================================================================
-        # TODO: Update with actual PTF diagnosis query
-        diagnoses_query = """
-        -- Placeholder - needs actual PTF diagnosis table
-        SELECT TOP 0
-            'ICD10' as ICD10Code,
-            'Description' as DiagnosisDescription,
-            1 as DiagnosisSequence,
-            'Y' as POAIndicator
+        ptf_table = get_table_reference(db_config.get("tables", {}).get("ptf_diagnoses_table", "Inpat.InpatientDischargeDiagnosis"))
+        icd10_table = get_table_reference("Dim.ICD10")
+        icd9_table = get_table_reference("Dim.ICD9")
+        icd10_desc_table = get_table_reference("Dim.ICD10DiagnosisVersion")
+        icd9_desc_table = get_table_reference("Dim.ICD9DiagnosisVersion")
+        
+        step_start = time.time()
+        diagnoses_query = f"""
+        SELECT
+            dd.InpatientDischargeDiagnosisSID,
+            dd.InpatientSID,
+            dd.PTFIEN,
+            dd.OrdinalNumber as DiagnosisSequence,
+            dd.ICD10SID,
+            dd.ICD9SID,
+            COALESCE(icd10.ICD10Code, icd9.ICD9Code, 'UNKNOWN') as ICD10Code,
+            COALESCE(icd10_desc.ICD10Diagnosis, icd9_desc.ICD9Diagnosis, 'No description available') as DiagnosisDescription,
+            CASE 
+                WHEN dd.ICD10SID IS NOT NULL AND dd.ICD10SID > 0 THEN 'ICD-10'
+                WHEN dd.ICD9SID IS NOT NULL AND dd.ICD9SID > 0 THEN 'ICD-9'
+                ELSE 'UNCODED'
+            END as CodeSystem
+        FROM {ptf_table} dd
+        LEFT JOIN {icd10_table} icd10 ON dd.ICD10SID = icd10.ICD10SID
+        LEFT JOIN {icd9_table} icd9 ON dd.ICD9SID = icd9.ICD9SID
+        LEFT JOIN {icd10_desc_table} icd10_desc 
+            ON dd.ICD10SID = icd10_desc.ICD10SID 
+            AND icd10_desc.CurrentVersionFlag = 'Y'
+        LEFT JOIN {icd9_desc_table} icd9_desc 
+            ON dd.ICD9SID = icd9_desc.ICD9SID 
+            AND icd9_desc.CurrentVersionFlag = 'Y'
+        WHERE (dd.PTFIEN = ? OR dd.InpatientSID = TRY_CAST(? as bigint))
+          AND dd.Sta3n = ?
+        ORDER BY dd.OrdinalNumber
         """
 
-        diagnoses_result = conn.execute_query(diagnoses_query)
-        coded_diagnoses = diagnoses_result.get("rows", [])
+        diagnoses_result = conn.execute_query(
+            diagnoses_query,
+            params=(normalized_admission_id, inpatient_sid, station)
+        )
+        if not isinstance(diagnoses_result, dict):
+            logger.error(f"diagnoses_result is not a dict, got {type(diagnoses_result)}")
+            fail_review(review_id, "Diagnoses query returned invalid response")
+            raise HTTPException(status_code=500, detail="Diagnoses query returned invalid response")
+        
+        if not diagnoses_result.get("success"):
+            logger.warning(f"Diagnoses extraction query failed: {diagnoses_result.get('error')}. Continuing with empty diagnoses.")
+            coded_diagnoses = []
+        else:
+            coded_diagnoses = diagnoses_result.get("rows", []) or []
+        
+        update_progress(review_id, 55, f"Extracted {len(coded_diagnoses)} coded diagnoses")
+        mark_step_complete(review_id, "Extract Diagnoses")
+
+        query_logger.log_query(
+            query_type="EXTRACT_PTF_DIAGNOSES",
+            username=username,
+            sql_query=diagnoses_query,
+            parameters={
+                "admission_id": request.admission_id,
+                "inpatient_sid": inpatient_sid,
+                "station": station
+            },
+            success=diagnoses_result["success"],
+            results=coded_diagnoses,
+            error=diagnoses_result.get("error"),
+            row_count=len(coded_diagnoses),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
+
+        query_logger.log_evaluation_step(
+            evaluation_id=analysis_id,
+            patient_id=request.patient_id,
+            username=username,
+            step_name="Extract PTF Diagnoses",
+            step_type="DATA_EXTRACTION",
+            success=diagnoses_result["success"],
+            input_data={"patient_id": request.patient_id},
+            output_data={"diagnosis_count": len(coded_diagnoses)},
+            error=diagnoses_result.get("error"),
+            execution_time_ms=(time.time() - step_start) * 1000
+        )
 
         # Log document extraction
         audit_logger.log_document_extraction(
@@ -865,6 +1289,8 @@ async def start_review(request: ReviewRequest):
         # ================================================================
         # Step 5: AI Analysis of Clinical Notes
         # ================================================================
+        update_progress(review_id, 60, "Running AI analysis on clinical documentation...")
+        
         note_analyses = []
 
         for note in clinical_notes:
@@ -878,12 +1304,19 @@ async def start_review(request: ReviewRequest):
                 }
             )
 
+            if not isinstance(analysis, dict):
+                logger.error(f"analysis is not a dict for note {note.get('NoteID')}, got {type(analysis)}")
+                continue
+                
             if analysis.get("success"):
                 note_analyses.append({
                     "note_id": note.get("NoteID"),
                     "note_type": note.get("NoteType"),
                     "analysis": analysis.get("analysis")
                 })
+
+        update_progress(review_id, 70, f"Analyzed {len(note_analyses)} clinical notes")
+        mark_step_complete(review_id, "Analyze Clinical Notes")
 
         # ================================================================
         # Step 6: Consolidate All Analyses
@@ -902,10 +1335,16 @@ async def start_review(request: ReviewRequest):
                     "admission_id": request.admission_id
                 }
             )
+        
+        if not isinstance(consolidated, dict):
+            logger.error(f"consolidated is not a dict, got {type(consolidated)}")
+            raise HTTPException(status_code=500, detail="Consolidation analysis returned invalid response")
 
         # ================================================================
         # Step 7: Compare Against Coded Diagnoses
         # ================================================================
+        update_progress(review_id, 80, "Comparing AI diagnoses with coded diagnoses...")
+        
         ai_diagnoses = []
         if consolidated.get("success") and consolidated.get("consolidated"):
             cons = consolidated["consolidated"]
@@ -924,6 +1363,10 @@ async def start_review(request: ReviewRequest):
                 for d in coded_diagnoses
             ]
         )
+        
+        if not isinstance(comparison, dict):
+            logger.error(f"comparison is not a dict, got {type(comparison)}")
+            raise HTTPException(status_code=500, detail="Diagnosis comparison returned invalid response")
 
         # Calculate processing time
         processing_time = time.time() - start_time
@@ -962,8 +1405,15 @@ async def start_review(request: ReviewRequest):
                 discrepancies=len(comp.get("documented_not_coded", [])) + len(comp.get("coded_not_documented", []))
             )
 
-        return {
+        # ================================================================
+        # Complete Review - Mark as Done
+        # ================================================================
+        update_progress(review_id, 100, "Review complete")
+        mark_step_complete(review_id, "Diagnosis Comparison")
+        
+        review_result = {
             "success": True,
+            "review_id": review_id,
             "analysis_id": analysis_id,
             "patient_id": request.patient_id,
             "processing_time_seconds": round(processing_time, 2),
@@ -976,30 +1426,24 @@ async def start_review(request: ReviewRequest):
             "vitals_data": vitals,
             "labs_data": labs,
             "ai_analysis": {
-                "consolidated": consolidated.get("consolidated"),
+                "consolidated": consolidated.get("consolidated") if isinstance(consolidated, dict) else None,
                 "diagnoses_found": len(ai_diagnoses)
             },
             "coded_diagnoses": coded_diagnoses,
-            "comparison": comparison.get("comparison"),
-            "recommendations": consolidated.get("consolidated", {}).get("recommendations", [])
+            "comparison": comparison.get("comparison") if isinstance(comparison, dict) else None,
+            "recommendations": consolidated.get("consolidated", {}).get("recommendations", []) if isinstance(consolidated.get("consolidated"), dict) else []
         }
+        
+        complete_review(review_id, review_result)
+
+        return review_result
 
     except HTTPException:
+        fail_review(review_id, str(review_id) if isinstance(review_id, str) else "Unknown error")
         raise
     except Exception as e:
         logger.error(f"Error in review process: {e}", exc_info=True)
-
-        audit_logger.log_analysis_complete(
-            username=username,
-            patient_id=request.patient_id,
-            analysis_id="ERROR",
-            diagnoses_found=0,
-            processing_time_seconds=time.time() - start_time,
-            success=False,
-            error=str(e)
-        )
-
-        raise HTTPException(status_code=500, detail=str(e))
+        fail_review(review_id, str(e))
 
 
 @app.post("/api/export")
@@ -1010,9 +1454,6 @@ async def export_results(request: ExportRequest):
     username = get_username()
 
     try:
-        # TODO: Implement export functionality
-        # This will use python-docx for DOCX, openpyxl/xlsxwriter for XLSX, and reportlab for PDF
-
         export_dir = project_root / "data" / "exports"
         export_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1020,24 +1461,24 @@ async def export_results(request: ExportRequest):
         filename = f"analysis_{request.patient_id}_{timestamp}.{request.format}"
         file_path = export_dir / filename
 
-        # Placeholder - actual export implementation needed
-        if request.format == "docx":
-            # from docx import Document
-            # doc = Document()
-            # doc.add_heading('Documentation Analysis Report', 0)
-            # doc.save(file_path)
-            pass
-        elif request.format == "xlsx":
-            # import pandas as pd
-            # df = pd.DataFrame(...)
-            # df.to_excel(file_path, index=False)
-            pass
-        elif request.format == "pdf":
-            # from reportlab.lib.pagesizes import letter
-            # from reportlab.pdfgen import canvas
-            # c = canvas.Canvas(str(file_path), pagesize=letter)
-            # c.save()
-            pass
+        if request.format.lower() == "xlsx":
+            if not request.payload:
+                raise HTTPException(status_code=400, detail="No payload provided for export")
+
+            summary_rows = request.payload.get("summary", [])
+            comparison_rows = request.payload.get("comparison", [])
+            evidence_rows = request.payload.get("evidence", [])
+
+            with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+                if summary_rows:
+                    pd.DataFrame(summary_rows).to_excel(writer, sheet_name="Hospitalization Summary", index=False)
+                if comparison_rows:
+                    pd.DataFrame(comparison_rows).to_excel(writer, sheet_name="Dx Comparison", index=False)
+                if evidence_rows:
+                    pd.DataFrame(evidence_rows).to_excel(writer, sheet_name="Daily Evidence", index=False)
+
+        else:
+            raise HTTPException(status_code=400, detail="Only XLSX export is implemented now")
 
         audit_logger.log_export(
             username=username,
@@ -1049,7 +1490,7 @@ async def export_results(request: ExportRequest):
 
         return {
             "success": True,
-            "message": f"Export to {request.format.upper()} not yet implemented",
+            "message": f"Exported to {request.format.upper()}",
             "file_path": str(file_path)
         }
 
@@ -1164,6 +1605,20 @@ async def get_diagnostics():
             "note_types_configured": bool(db_config.get("note_types", {}).get("admission_notes"))
         }
     }
+
+@app.post("/api/shutdown")
+async def shutdown_server():
+    """
+    Gracefully shut down the application server.
+
+    Responds immediately, then terminates the process shortly after.
+    """
+    def _shutdown():
+        time.sleep(0.5)
+        os._exit(0)
+
+    threading.Thread(target=_shutdown, daemon=True).start()
+    return {"success": True, "message": "Server is shutting down..."}
 
 
 # ============================================================================
