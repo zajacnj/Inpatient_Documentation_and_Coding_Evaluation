@@ -7,6 +7,7 @@ cd /d "%~dp0"
 
 echo.
 echo Starting Inpatient Documentation and Coding Evaluation...
+echo (Microsoft Edge App Mode)
 echo.
 
 REM Activate virtual environment if it exists
@@ -18,30 +19,24 @@ if exist ".venv\Scripts\activate.bat" (
     echo Run: python -m venv .venv
     echo Then: .venv\Scripts\activate.bat
     echo Then: pip install -r requirements.txt
+    pause
+    exit /b 1
 )
 
 REM Load environment variables from Key.env
 if exist "Key.env" (
-    for /f "usebackq delims=" %%i in ("Key.env") do set %%i
+    for /f "usebackq delims=" %%i in ("Key.env") do (
+        set "%%i" 2>nul
+    )
 )
-
-echo Starting server...
-start /B uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-
-echo Waiting for server to be ready...
-:wait_loop
-timeout /t 1 /nobreak >nul
-curl -s http://127.0.0.1:8000/api/health >nul 2>&1
-if errorlevel 1 (
-    goto wait_loop
-)
-
-echo Server is ready! Opening browser...
-start "" "http://127.0.0.1:8000"
 
 echo.
-echo Application is running at http://127.0.0.1:8000
-echo Press Ctrl+C to stop the server
-pause >nul
+echo Starting application in Microsoft Edge app mode...
+echo Close the Edge window to exit the application
+echo.
 
+python launcher_edge.py
+
+echo.
+echo Application closed.
 endlocal

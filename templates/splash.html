@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #002855 0%, #003d7a 50%, #002855 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .splash-container {
+            text-align: center;
+            animation: fadeIn 1s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-container {
+            width: 220px;
+            height: 220px;
+            margin: 0 auto 30px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+        }
+
+        .logo-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .title-section {
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .title-section h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            font-size: 1.3rem;
+            font-weight: 300;
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 20px;
+        }
+
+        .divider {
+            width: 300px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 20px auto;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .loading-indicator {
+            margin-top: 50px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .header-actions {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .control-button {
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .control-button:active {
+            transform: scale(0.96);
+        }
+
+        .quit-button {
+            background: rgba(220, 53, 69, 0.3);
+            border-color: rgba(220, 53, 69, 0.5);
+        }
+
+        .quit-button:hover {
+            background: rgba(220, 53, 69, 0.5);
+            border-color: rgba(220, 53, 69, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-actions">
+        <button class="control-button" id="fullscreen-btn" onclick="toggleFullscreen()" title="Press F11 to toggle fullscreen">Enter Fullscreen</button>
+        <button class="control-button quit-button" onclick="quitApplication()" title="Close the application">Quit</button>
+    </div>
+
+    <div class="splash-container">
+        <div class="logo-container">
+            <img src="/static/logo.png" alt="VA AI Assistant Logo">
+        </div>
+        <div class="title-section">
+            <h1>VA AI Assistant</h1>
+            <div class="divider"></div>
+            <p class="subtitle">Built for the VA. Powered by AI.</p>
+            <div class="version-badge">v3.0</div>
+        </div>
+        <div class="loading-indicator">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+
+
+    <script>
+        // Toggle fullscreen mode
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {
+                    console.log('Could not exit fullscreen');
+                });
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Could not enter fullscreen');
+                });
+            }
+        }
+
+        // Update button text based on fullscreen state
+        function updateFullscreenButton() {
+            const btn = document.getElementById('fullscreen-btn');
+            if (btn) {
+                if (document.fullscreenElement) {
+                    btn.textContent = 'Exit Fullscreen';
+                } else {
+                    btn.textContent = 'Enter Fullscreen';
+                }
+            }
+        }
+
+        // Quit application (calls shutdown endpoint)
+        async function quitApplication() {
+            const confirmed = confirm('Close the application and stop the server?');
+            if (!confirmed) return;
+
+            console.log('Initiating shutdown...');
+            
+            // Send shutdown request to server
+            let shutdownSent = false;
+            try {
+                const response = await fetch('/api/shutdown', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    console.log('Shutdown request acknowledged by server');
+                    shutdownSent = true;
+                }
+            } catch (error) {
+                console.error('Shutdown request failed:', error);
+            }
+            
+            // Wait for server to shut down, then close window
+            // The launcher_edge.py will detect the server is dead and close Edge
+            const delay = shutdownSent ? 1500 : 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            console.log('Closing window...');
+            
+            // Try multiple methods to close the window
+            window.close();
+            
+            // If window.close() doesn't work (Edge app mode restriction),
+            // navigate to blank page - launcher will detect server death and kill Edge
+            setTimeout(() => {
+                window.location.href = 'about:blank';
+            }, 500);
+        }
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+        // Auto-enter fullscreen on load
+        window.addEventListener('load', function() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Auto-fullscreen blocked - user can enable with button or F11');
+                });
+            }
+        });
+
+        // Auto-redirect to notice page after 3 seconds
+        setTimeout(function() {
+            window.location.href = '/notice';
+        }, 3000);
+
+        // F11 toggle fullscreen (for desktop app mode)
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'F11') {
+                event.preventDefault();
+                toggleFullscreen();
+            }
+        });
+    </script>
+</body>
+</html>

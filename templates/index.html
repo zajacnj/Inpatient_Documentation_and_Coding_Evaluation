@@ -479,12 +479,63 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
+
+        /* Header Control Actions */
+        .header-actions {
+            position: absolute;
+            top: 50%;
+            right: 24px;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .header {
+            position: relative;
+        }
+
+        .control-button {
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .control-button:active {
+            transform: scale(0.96);
+        }
+
+        .quit-button {
+            background: rgba(220, 53, 69, 0.3);
+            border-color: rgba(220, 53, 69, 0.5);
+        }
+
+        .quit-button:hover {
+            background: rgba(220, 53, 69, 0.5);
+            border-color: rgba(220, 53, 69, 0.7);
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Inpatient Documentation and Coding Evaluation</h1>
         <p>AI-powered analysis of clinical documentation against coded diagnoses</p>
+        <div class="header-actions">
+            <button class="control-button" id="fullscreen-btn" onclick="toggleFullscreen()" title="Press F11 to toggle fullscreen">Enter Fullscreen</button>
+            <button class="control-button quit-button" onclick="quitApplication()" title="Close the application">Quit</button>
+        </div>
     </div>
 
     <div style="display: flex; gap: 10px; align-items: center; margin: 12px 24px 0 24px;">
@@ -1548,6 +1599,96 @@
             const date = new Date(dateString);
             return date.toLocaleDateString();
         }
+
+        // Toggle fullscreen mode
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {
+                    console.log('Could not exit fullscreen');
+                });
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Could not enter fullscreen');
+                });
+            }
+        }
+
+        // Update button text based on fullscreen state
+        function updateFullscreenButton() {
+            const btn = document.getElementById('fullscreen-btn');
+            if (btn) {
+                if (document.fullscreenElement) {
+                    btn.textContent = 'Exit Fullscreen';
+                } else {
+                    btn.textContent = 'Enter Fullscreen';
+                }
+            }
+        }
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+        // Auto-enter fullscreen on load
+        window.addEventListener('load', function() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Auto-fullscreen blocked - user can enable with button or F11');
+                });
+            }
+        });
+
+        // Quit application (calls shutdown endpoint)
+        async function quitApplication() {
+            const confirmed = confirm('Close the application and stop the server?');
+            if (!confirmed) return;
+
+            console.log('Initiating shutdown...');
+            
+            // Send shutdown request to server
+            let shutdownSent = false;
+            try {
+                const response = await fetch('/api/shutdown', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    console.log('Shutdown request acknowledged by server');
+                    shutdownSent = true;
+                }
+            } catch (error) {
+                console.error('Shutdown request failed:', error);
+            }
+            
+            // Wait for server to shut down, then close window
+            // The launcher_edge.py will detect the server is dead and close Edge
+            const delay = shutdownSent ? 1500 : 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            console.log('Closing window...');
+            
+            // Try multiple methods to close the window
+            window.close();
+            
+            // If window.close() doesn't work (Edge app mode restriction),
+            // navigate to blank page - launcher will detect server death and kill Edge
+            setTimeout(() => {
+                window.location.href = 'about:blank';
+            }, 500);
+        }
+
+        // F11 toggle fullscreen (for desktop app mode)
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'F11') {
+                event.preventDefault();
+                toggleFullscreen();
+            }
+        });
     </script>
+
+
 </body>
 </html>

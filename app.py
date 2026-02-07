@@ -321,6 +321,18 @@ def classify_provider_roles(conn: DatabaseConnection, staff_sids: List[int]) -> 
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
+    """Serve the splash screen."""
+    return templates.TemplateResponse("splash.html", {"request": request})
+
+
+@app.get("/notice", response_class=HTMLResponse)
+async def notice_page(request: Request):
+    """Serve the notice/agreement page."""
+    return templates.TemplateResponse("notice.html", {"request": request})
+
+
+@app.get("/app", response_class=HTMLResponse)
+async def main_app(request: Request):
     """Serve the main application page."""
     return templates.TemplateResponse("index.html", {"request": request})
 

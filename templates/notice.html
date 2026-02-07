@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA AI Assistant - Important Notice</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #002855 0%, #003d7a 50%, #002855 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .notice-card {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .seal-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .seal-container img {
+            width: 80px;
+            height: 80px;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .header-section h1 {
+            font-size: 1.6rem;
+            color: #002855;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .header-section .subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            font-weight: 400;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h2 {
+            font-size: 1.1rem;
+            color: #002855;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .section p {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .section ul {
+            margin-left: 20px;
+            color: #333;
+        }
+
+        .section li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .highlight-box {
+            background: #f8f9fa;
+            border-left: 4px solid #002855;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+        }
+
+        .highlight-box p {
+            color: #555;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .agree-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+
+        .agree-button:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4);
+        }
+
+        .agree-button:active {
+            transform: translateY(0);
+        }
+
+        strong {
+            color: #002855;
+        }
+
+        .header-actions {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        .control-button {
+            padding: 8px 14px;
+            background: rgba(0, 0, 0, 0.15);
+            color: #333;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-button:hover {
+            background: rgba(0, 0, 0, 0.2);
+            border-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .control-button:active {
+            transform: scale(0.96);
+        }
+
+        .quit-button {
+            background: rgba(220, 53, 69, 0.2);
+            border-color: rgba(220, 53, 69, 0.4);
+        }
+
+        .quit-button:hover {
+            background: rgba(220, 53, 69, 0.3);
+            border-color: rgba(220, 53, 69, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-actions">
+        <button class="control-button" id="fullscreen-btn" onclick="toggleFullscreen()" title="Press F11 to toggle fullscreen">Enter Fullscreen</button>
+        <button class="control-button quit-button" onclick="quitApplication()" title="Close the application">Quit</button>
+    </div>
+
+    <div class="notice-card">
+        <div class="seal-container">
+            <img src="/static/va-seal.svg" alt="Department of Veterans Affairs Seal">
+        </div>
+
+        <div class="header-section">
+            <h1>Department of Veterans Affairs</h1>
+            <p class="subtitle">VA AI Assistant Platform</p>
+        </div>
+
+        <div class="section">
+            <h2>Important Notice</h2>
+            <p><strong>This system is for official use only.</strong> All activity on this system is monitored and recorded. Unauthorized access or misuse may result in disciplinary action and/or criminal prosecution.</p>
+        </div>
+
+        <div class="section">
+            <h2>Privacy &amp; Security</h2>
+            <ul>
+                <li>This application is approved for use with PHI/PII within VA-controlled networks</li>
+                <li>Do not use this system with any external or non-VA AI services</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>AI Usage Guidelines</h2>
+            <ul>
+                <li>AI-generated content should be reviewed before use</li>
+                <li>Verify all factual information independently</li>
+                <li>Use AI as a tool to assist, not replace, professional judgment</li>
+                <li>Report any concerning outputs to your supervisor</li>
+            </ul>
+        </div>
+
+        <div class="highlight-box">
+            <p>By clicking "I Agree &amp; Continue" below, you acknowledge that you have read and understood these guidelines.</p>
+        </div>
+
+        <div class="button-container">
+            <button class="agree-button" onclick="proceedToApp()">I Agree &amp; Continue</button>
+        </div>
+    </div>
+
+
+
+    <script>
+        // Toggle fullscreen mode
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {
+                    console.log('Could not exit fullscreen');
+                });
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Could not enter fullscreen');
+                });
+            }
+        }
+
+        // Update button text based on fullscreen state
+        function updateFullscreenButton() {
+            const btn = document.getElementById('fullscreen-btn');
+            if (btn) {
+                if (document.fullscreenElement) {
+                    btn.textContent = 'Exit Fullscreen';
+                } else {
+                    btn.textContent = 'Enter Fullscreen';
+                }
+            }
+        }
+
+        // Quit application (calls shutdown endpoint)
+        async function quitApplication() {
+            const confirmed = confirm('Close the application and stop the server?');
+            if (!confirmed) return;
+
+            console.log('Initiating shutdown...');
+            
+            // Send shutdown request to server
+            let shutdownSent = false;
+            try {
+                const response = await fetch('/api/shutdown', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    console.log('Shutdown request acknowledged by server');
+                    shutdownSent = true;
+                }
+            } catch (error) {
+                console.error('Shutdown request failed:', error);
+            }
+            
+            // Wait for server to shut down, then close window
+            // The launcher_edge.py will detect the server is dead and close Edge
+            const delay = shutdownSent ? 1500 : 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            console.log('Closing window...');
+            
+            // Try multiple methods to close the window
+            window.close();
+            
+            // If window.close() doesn't work (Edge app mode restriction),
+            // navigate to blank page - launcher will detect server death and kill Edge
+            setTimeout(() => {
+                window.location.href = 'about:blank';
+            }, 500);
+        }
+
+        function proceedToApp() {
+            window.location.href = '/app';
+        }
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
+
+        // Auto-enter fullscreen on load
+        window.addEventListener('load', function() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {
+                    console.log('Auto-fullscreen blocked - user can enable with button or F11');
+                });
+            }
+        });
+
+        // F11 toggle fullscreen (for desktop app mode)
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'F11') {
+                event.preventDefault();
+                toggleFullscreen();
+            }
+        });
+    </script>
+</body>
+</html>

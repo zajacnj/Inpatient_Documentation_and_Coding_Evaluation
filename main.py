@@ -347,6 +347,18 @@ def classify_provider_roles(conn: DatabaseConnection, staff_sids: List[int]) -> 
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
+    """Serve the splash screen."""
+    return templates.TemplateResponse("splash.html", {"request": request})
+
+
+@app.get("/notice", response_class=HTMLResponse)
+async def notice(request: Request):
+    """Serve the notice/disclaimer page."""
+    return templates.TemplateResponse("notice.html", {"request": request})
+
+
+@app.get("/app", response_class=HTMLResponse)
+async def app_main(request: Request):
     """Serve the main application page."""
     return templates.TemplateResponse("index.html", {"request": request})
 
@@ -365,16 +377,56 @@ async def logs_page(request: Request):
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0",
-        "components": {
-            "database": db_connection.is_connected if db_connection else False,
-            "va_gpt": va_gpt_client.is_initialized()
+    """Health check endpoint - always returns 200 to indicate server is alive."""
+    try:
+        # Check component health, but don't fail the endpoint if checks fail
+        db_healthy = False
+        try:
+            db_healthy = db_connection.is_connected if db_connection else False
+        except Exception:
+            pass
+        
+        va_gpt_healthy = False
+        try:
+            va_gpt_healthy = va_gpt_client.is_initialized() if va_gpt_client else False
+        except Exception:
+            pass
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "components": {
+                "database": db_healthy,
+                "va_gpt": va_gpt_healthy
+            }
         }
-    }
+    except Exception as e:
+        # Even if there's an error, return a response to indicate server is alive
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "error": str(e)
+        }
+
+
+@app.post("/api/shutdown")
+async def shutdown():
+    """Shutdown endpoint - gracefully stops the server."""
+    logger.info("Shutdown requested via API")
+    
+    # Return success response
+    response = {"status": "shutdown_initiated", "timestamp": datetime.now().isoformat()}
+    
+    # Schedule server shutdown after a brief delay to allow response to be sent
+    async def delayed_shutdown():
+        await asyncio.sleep(0.5)
+        logger.info("Executing server shutdown...")
+        os._exit(0)
+    
+    asyncio.create_task(delayed_shutdown())
+    return response
 
 
 @app.get("/api/errors/recent")
